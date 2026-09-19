@@ -138,7 +138,8 @@ function HomePage({ user, events, announcements, rsvps, onRsvp, onNavigate }: { 
           <button className="text-link" onClick={() => onNavigate("events")}>See what’s happening <Icon name="arrow" /></button>
         </div>
         <div className="hero-plate" aria-label="Technical illustration of a robotic hand and microcontroller" onContextMenu={(event) => event.preventDefault()}>
-          <Image src="/assets/robot-hand-board-light.png" alt="Ink-style robotic hand reaching toward a microcontroller" fill preload draggable={false} sizes="(max-width: 800px) 100vw, 58vw" />
+          <Image className="hero-art hero-art-desktop" src="/assets/robot-hand-board-light.png" alt="Ink-style robotic hand reaching toward a microcontroller" fill preload draggable={false} sizes="(max-width: 800px) 100vw, 58vw" />
+          <Image className="hero-art hero-art-mobile" src="/assets/mobile-hero-hand.png" alt="Ink-style open robotic hand" fill preload draggable={false} sizes="(max-width: 760px) 100vw, 1px" />
           <span className="plate-label">IDEAS<br />HARDWARE<br />PEOPLE<br />A BRIGHTER<br />TOMORROW</span>
         </div>
       </section>

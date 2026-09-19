@@ -21,6 +21,8 @@ with sync_playwright() as p:
     desktop.goto("http://localhost:3000", wait_until="networkidle")
     assert_text(desktop, "Good to see you")
     assert_text(desktop, "Arduino Workshop")
+    assert desktop.locator(".hero-art-desktop").is_visible()
+    assert not desktop.locator(".hero-art-mobile").is_visible()
     assert desktop.locator("[data-nextjs-dialog]").count() == 0
     desktop.screenshot(path=str(SHOT_DIR / "home-desktop.png"), full_page=True)
 
@@ -65,7 +67,9 @@ with sync_playwright() as p:
     mobile.goto("http://localhost:3000", wait_until="networkidle")
     assert_text(mobile, "Good to see you")
     assert mobile.locator(".mobile-nav").is_visible()
-    hero_image = mobile.locator(".hero-plate img")
+    hero_image = mobile.locator(".hero-art-mobile")
+    assert hero_image.is_visible()
+    assert not mobile.locator(".hero-art-desktop").is_visible()
     assert hero_image.get_attribute("draggable") == "false"
     assert hero_image.evaluate("el => !CSS.supports('-webkit-touch-callout', 'none') || getComputedStyle(el).webkitTouchCallout === 'none'")
     assert hero_image.evaluate("el => getComputedStyle(el).pointerEvents") == "none"
