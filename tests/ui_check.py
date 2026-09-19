@@ -65,6 +65,10 @@ with sync_playwright() as p:
     mobile.goto("http://localhost:3000", wait_until="networkidle")
     assert_text(mobile, "Good to see you")
     assert mobile.locator(".mobile-nav").is_visible()
+    hero_image = mobile.locator(".hero-plate img")
+    assert hero_image.get_attribute("draggable") == "false"
+    assert hero_image.evaluate("el => !CSS.supports('-webkit-touch-callout', 'none') || getComputedStyle(el).webkitTouchCallout === 'none'")
+    assert hero_image.evaluate("el => getComputedStyle(el).pointerEvents") == "none"
     mobile.screenshot(path=str(SHOT_DIR / "home-mobile.png"), full_page=True)
     mobile.locator(".mobile-nav button", has_text="Members").click()
     assert_text(mobile, "Club Directory")

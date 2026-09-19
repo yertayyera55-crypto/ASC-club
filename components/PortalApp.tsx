@@ -137,8 +137,8 @@ function HomePage({ user, events, announcements, rsvps, onRsvp, onNavigate }: { 
           <p className="hero-intro">Your place for the next build, the people behind it, and what the club is making now.</p>
           <button className="text-link" onClick={() => onNavigate("events")}>See what’s happening <Icon name="arrow" /></button>
         </div>
-        <div className="hero-plate" aria-label="Technical illustration of a robotic hand and microcontroller">
-          <Image src="/assets/robot-hand-board-light.png" alt="Ink-style robotic hand reaching toward a microcontroller" fill preload sizes="(max-width: 800px) 100vw, 58vw" />
+        <div className="hero-plate" aria-label="Technical illustration of a robotic hand and microcontroller" onContextMenu={(event) => event.preventDefault()}>
+          <Image src="/assets/robot-hand-board-light.png" alt="Ink-style robotic hand reaching toward a microcontroller" fill preload draggable={false} sizes="(max-width: 800px) 100vw, 58vw" />
           <span className="plate-label">IDEAS<br />HARDWARE<br />PEOPLE<br />A BRIGHTER<br />TOMORROW</span>
         </div>
       </section>
@@ -151,7 +151,7 @@ function HomePage({ user, events, announcements, rsvps, onRsvp, onNavigate }: { 
           <p>{nextEvent.description}</p>
           <div className="event-actions"><ActionButton active={attending} onClick={() => onRsvp(nextEvent.id)}>{attending ? "I’m attending" : "Join event"}</ActionButton><span>{nextEvent.attendeeCount + (attending ? 1 : 0)} members going</span></div>
         </div>
-        <div className="event-art"><Image src="/assets/asc-rover.png" alt="Ink-style autonomous rover" fill loading="eager" sizes="(max-width: 800px) 100vw, 45vw" /></div>
+        <div className="event-art" onContextMenu={(event) => event.preventDefault()}><Image src="/assets/asc-rover.png" alt="Ink-style autonomous rover" fill loading="eager" draggable={false} sizes="(max-width: 800px) 100vw, 45vw" /></div>
         <div className="margin-note">SMALL<br />COMPONENTS<br />BIG<br />POSSIBILITIES</div>
       </section>
 
