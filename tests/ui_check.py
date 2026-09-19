@@ -37,7 +37,11 @@ with sync_playwright() as p:
     desktop.screenshot(path=str(SHOT_DIR / "members-desktop.png"), full_page=True)
 
     desktop.locator(".desktop-nav button", has_text="Profile").click()
-    desktop.get_by_role("button", name="Edit profile").click()
+    edit_button = desktop.get_by_role("button", name="Edit profile")
+    edit_button.hover()
+    assert edit_button.is_visible()
+    assert edit_button.evaluate("el => getComputedStyle(el).color !== getComputedStyle(el).backgroundColor")
+    edit_button.click()
     bio = desktop.get_by_label("Short bio")
     original_bio = bio.input_value()
     bio.fill(original_bio + " ")

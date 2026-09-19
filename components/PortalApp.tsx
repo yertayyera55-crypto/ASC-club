@@ -138,7 +138,7 @@ function HomePage({ user, events, announcements, rsvps, onRsvp, onNavigate }: { 
           <button className="text-link" onClick={() => onNavigate("events")}>See what’s happening <Icon name="arrow" /></button>
         </div>
         <div className="hero-plate" aria-label="Technical illustration of a robotic hand and microcontroller">
-          <Image src="/assets/robot-hand-board.png" alt="Ink-style robotic hand reaching toward a microcontroller" fill preload sizes="(max-width: 800px) 100vw, 58vw" />
+          <Image src="/assets/robot-hand-board-light.png" alt="Ink-style robotic hand reaching toward a microcontroller" fill preload sizes="(max-width: 800px) 100vw, 58vw" />
           <span className="plate-label">IDEAS<br />HARDWARE<br />PEOPLE<br />A BRIGHTER<br />TOMORROW</span>
         </div>
       </section>
