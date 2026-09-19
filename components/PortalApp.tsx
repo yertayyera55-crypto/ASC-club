@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
-import type { Announcement, ClubEvent, Direction, Level, Member } from "@/data/types";
+import type { Announcement, ClubEvent, Direction, Level, Member, Role } from "@/data/types";
 import { listAnnouncements } from "@/services/announcements";
 import { getRsvps, listEvents, setRsvp } from "@/services/events";
 import { canViewPrivateContacts, listMembers, updateMemberProfile } from "@/services/members";
@@ -69,6 +69,10 @@ export function PortalApp() {
 
   return (
     <div className="app-shell">
+      {process.env.NODE_ENV === "development" ? <DemoRoleSwitcher role={user.role} onChange={(role) => {
+        setUser((current) => current ? { ...current, role } : current);
+        if (role === "member" && page === "admin") setPage("home");
+      }} /> : null}
       <Header page={page} items={visibleNav} onNavigate={navigate} menuOpen={menuOpen} setMenuOpen={setMenuOpen} />
       <main key={page} className="page-enter">
         {page === "home" && <HomePage user={user} events={events} announcements={announcements} rsvps={rsvps} onRsvp={toggleRsvp} onNavigate={navigate} />}
@@ -82,6 +86,22 @@ export function PortalApp() {
         <div><strong>ASC</strong> <span>Automated Systems Club</span></div>
         <p>Students today. A brighter tomorrow.</p>
       </footer>
+    </div>
+  );
+}
+
+function DemoRoleSwitcher({ role, onChange }: { role: Role; onChange: (role: Role) => void }) {
+  const roles: Role[] = ["member", "organizer", "admin"];
+  return (
+    <div className="demo-toolbar" role="region" aria-label="Development role preview">
+      <div className="demo-toolbar-inner">
+        <span><i /> DEV PREVIEW</span>
+        <p>View portal as</p>
+        <div className="role-switch" role="group" aria-label="Preview role">
+          {roles.map((item) => <button key={item} className={role === item ? "active" : ""} onClick={() => onChange(item)}>{item}</button>)}
+        </div>
+        <small>MOCK DATA · REMOVE BEFORE LAUNCH</small>
+      </div>
     </div>
   );
 }

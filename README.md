@@ -33,6 +33,10 @@ python3 tests/ui_check.py
 
 The Playwright check expects the development server to be running on port `3000`.
 
+### Development role preview
+
+In `npm run dev`, a black development toolbar lets you preview the portal as **Member**, **Organizer**, or **Admin**. It is guarded by `NODE_ENV === "development"` and is omitted from production builds. This is only a UI preview; real permissions must still be enforced by the backend.
+
 ## Architecture
 
 - `app/` — Next.js App Router entry and global visual system
@@ -51,6 +55,8 @@ The current project is a frontend prototype. UI role checks demonstrate intended
 - organizers/admins may read private contacts;
 - role changes, account deactivation, and administrative writes require admin authorization;
 - invite codes must be validated and expire server-side.
+
+Before any public deployment, complete [PRE_LAUNCH_CHECKLIST.md](./PRE_LAUNCH_CHECKLIST.md). Do not publish the current mock member records as a real club database.
 
 ## Artwork
 

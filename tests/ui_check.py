@@ -48,6 +48,14 @@ with sync_playwright() as p:
     assert_text(desktop, "Member database")
     assert desktop.locator("table tbody tr").count() > 0
 
+    desktop.locator(".role-switch button", has_text="member").click()
+    assert_text(desktop, "Good to see you")
+    assert desktop.locator(".desktop-nav button", has_text="Admin").count() == 0
+    desktop.locator(".desktop-nav button", has_text="Members").click()
+    desktop.locator(".member-row").first.click()
+    assert desktop.locator(".private-block").count() == 0
+    desktop.get_by_role("button", name="Close").click()
+
     mobile = browser.new_page(viewport={"width": 390, "height": 844}, device_scale_factor=1)
     mobile.on("console", lambda msg: console_errors.append(msg.text) if msg.type == "error" else None)
     mobile.goto("http://localhost:3000", wait_until="networkidle")
@@ -61,5 +69,5 @@ with sync_playwright() as p:
     mobile.screenshot(path=str(SHOT_DIR / "member-mobile.png"), full_page=True)
 
     assert not console_errors, "Console errors: " + " | ".join(console_errors)
-    print("PASS: desktop/mobile render, navigation, RSVP, member search, drawer, profile save, admin table")
+    print("PASS: desktop/mobile render, navigation, RSVP, member search, role preview, privacy, profile save, admin table")
     browser.close()
