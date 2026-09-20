@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -41,10 +40,16 @@ export function AuthScreen({ authError = false }: { authError?: boolean }) {
           <Link href="/terms">Terms</Link>
         </nav>
       </section>
-      <div className="auth-art" aria-hidden="true">
-        <Image src="/assets/mobile-hero-hand.png" alt="" fill priority sizes="(max-width: 760px) 100vw, 56vw" draggable={false} />
-      </div>
-      <p className="auth-margin-note">IDEAS<br />SYSTEMS<br />PEOPLE<br />IMPACT</p>
+      <aside className="auth-system" aria-hidden="true">
+        <div className="auth-system-index"><span>ASC / 2026</span><span>MEMBER ACCESS</span></div>
+        <div className="auth-system-mark">A<span>S</span>C</div>
+        <ol>
+          <li><span>01</span><strong>Verify identity</strong><small>Google account</small></li>
+          <li><span>02</span><strong>Complete profile</strong><small>Club application</small></li>
+          <li><span>03</span><strong>Build together</strong><small>Member portal</small></li>
+        </ol>
+        <p>IDEAS · SYSTEMS · PEOPLE · IMPACT</p>
+      </aside>
     </main>
   );
 }

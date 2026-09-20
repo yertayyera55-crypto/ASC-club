@@ -91,7 +91,7 @@ export async function loadAccount() {
 
 export async function loadPortalState(account: AccountProfile): Promise<PortalState> {
   const supabase = await createClient();
-  const profileQuery = account.role === "admin"
+  const profileQuery = account.role === "admin" || account.role === "organizer"
     ? supabase.from("profiles").select("*").order("member_number")
     : supabase.from("profiles").select("*").eq("status", "active").order("member_number");
 

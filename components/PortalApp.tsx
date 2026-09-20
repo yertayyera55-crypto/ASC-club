@@ -14,7 +14,7 @@ const nav: { id: Page; label: string; icon: string }[] = [
   { id: "events", label: "Events", icon: "calendar" },
   { id: "members", label: "Members", icon: "users" },
   { id: "profile", label: "Profile", icon: "user" },
-  { id: "admin", label: "Admin", icon: "admin" },
+  { id: "admin", label: "Dashboard", icon: "admin" },
 ];
 
 const canViewPrivateContacts = (viewer: Member) => viewer.role === "organizer" || viewer.role === "admin";
@@ -277,7 +277,7 @@ function AdminPage({ members: initialMembers, viewer }: { members: Member[]; vie
   };
 
   return <div className="content-page admin-page">
-    <header className="page-header"><div><p className="eyebrow">ORGANIZER WORKSPACE</p><h1>Member database</h1></div><p>Review applications, assign roles and find members by their interests. Private contacts stay restricted to this workspace.</p></header>
+    <header className="page-header"><div><p className="eyebrow">ORGANIZER WORKSPACE</p><h1>Member database</h1></div><p>{viewer.role === "admin" ? "Review applications, assign roles and find members by their interests." : "Review applications and find members by their interests. Access changes stay with administrators."} Private contacts stay restricted to this workspace.</p></header>
     <div className="admin-stats"><div><strong>{members.filter(m => m.status === "active").length}</strong><span>Active members</span></div><div><strong>{members.filter(m => m.status === "pending").length}</strong><span>Pending approval</span></div><div><strong>{members.filter(m => m.competitionInterest).length}</strong><span>Competition interest</span></div></div>
     <div className="filter-bar admin-filters"><label className="search-field"><Icon name="search" /><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search members…" /></label><label><span>Grade</span><select value={grade} onChange={e => setGrade(e.target.value)}><option>All</option>{[7,8,9,10,11,12].map(n => <option key={n}>{n}</option>)}</select></label><label><span>Direction</span><select value={direction} onChange={e => setDirection(e.target.value as Direction | "All")}><option>All</option><option>Machine Learning</option><option>Arduino</option><option>Both</option><option>Not sure</option></select></label><label><span>Level</span><select value={level} onChange={e => setLevel(e.target.value as Level | "All")}><option>All</option><option>Beginner</option><option>Intermediate</option><option>Advanced</option></select></label><label className="competition-filter"><input type="checkbox" checked={competitionOnly} onChange={e => setCompetitionOnly(e.target.checked)} /> Competition interest</label></div>
     <div className="admin-result"><strong>{filtered.length}</strong> matching members {pending ? "· SAVING" : ""}{message ? <span role="status"> · {message}</span> : null}</div>

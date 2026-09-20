@@ -6,7 +6,7 @@ SHOT_DIR = ROOT / "test-results"
 SHOT_DIR.mkdir(exist_ok=True)
 
 
-def verify_login(page, screenshot_name: str):
+def verify_login(page, screenshot_name: str, mobile: bool = False):
     page.goto("http://localhost:3000", wait_until="networkidle")
     headline = page.locator(".auth-copy h1")
     assert headline.is_visible()
@@ -16,6 +16,8 @@ def verify_login(page, screenshot_name: str):
     assert page.get_by_text("Good to see you", exact=False).count() == 0
     assert page.get_by_text("Arduino Workshop", exact=False).count() == 0
     assert page.locator(".demo-toolbar").count() == 0
+    assert page.locator(".auth-page img").count() == 0
+    assert page.locator(".auth-system").is_hidden() if mobile else page.locator(".auth-system").is_visible()
     assert page.locator("[data-nextjs-dialog]").count() == 0
     page.screenshot(path=str(SHOT_DIR / screenshot_name), full_page=True)
 
@@ -30,11 +32,8 @@ with sync_playwright() as p:
 
     mobile = browser.new_page(viewport={"width": 390, "height": 844}, device_scale_factor=1)
     mobile.on("console", lambda msg: console_errors.append(msg.text) if msg.type == "error" else None)
-    verify_login(mobile, "auth-mobile.png")
-    auth_art = mobile.locator(".auth-art img")
-    assert auth_art.get_attribute("draggable") == "false"
-    assert auth_art.evaluate("el => getComputedStyle(el).pointerEvents") == "none"
+    verify_login(mobile, "auth-mobile.png", mobile=True)
 
     assert not console_errors, "Console errors: " + " | ".join(console_errors)
-    print("PASS: protected portal shows responsive Google sign-in with no mock member data")
+    print("PASS: protected portal shows responsive image-free Google sign-in with no mock member data")
     browser.close()
