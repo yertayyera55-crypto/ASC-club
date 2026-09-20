@@ -1,25 +1,30 @@
 # ASC Club Portal
 
-Private responsive portal prototype for **ASC — Automated Systems Club**.
+Private responsive portal for **ASC — Automated Systems Club**.
 
 The interface follows an editorial, engineering-led visual system: off-white paper surfaces, black technical plates, sparse orange registration marks, strict typography, and original ink-style illustrations. All navigation, lists, filters, profiles, event rows, and controls are real responsive interface elements.
 
 ## Included
 
 - Home with the next event, announcements, club count, and quick navigation
-- Upcoming/past event views with persistent local RSVP state
+- Google sign-in with administrator approval for new members
+- Upcoming/past event views with database-backed RSVP state
 - Searchable member directory with grade, direction, and level filters
 - Public member profile drawer with role-aware contact visibility
 - Editable personal profile
 - Organizer member database with private contacts and competition filters
+- Admin controls for approval, suspension, and Member/Organizer/Admin roles
 - Responsive desktop and mobile navigation
 
 ## Run locally
 
-```bash
-npm install
-npm run dev
-```
+1. Copy `.env.example` to `.env.local` and add the Supabase values.
+2. Run:
+
+   ```bash
+   npm install
+   npm run dev
+   ```
 
 Open [http://localhost:3000](http://localhost:3000).
 
@@ -28,35 +33,33 @@ Production verification:
 ```bash
 npm run lint
 npm run build
-python3 tests/ui_check.py
+python3 ~/.codex/skills/webapp-testing/scripts/with_server.py \
+  --server "npm run dev" --port 3000 -- python3 tests/ui_check.py
 ```
 
-The Playwright check expects the development server to be running on port `3000`.
-
-### Development role preview
-
-In `npm run dev`, a black development toolbar lets you preview the portal as **Member**, **Organizer**, or **Admin**. It is guarded by `NODE_ENV === "development"` and is omitted from production builds. This is only a UI preview; real permissions must still be enforced by the backend.
+The first administrator is assigned by the database trigger to `yertay.yera55@gmail.com`. Every other Google account starts in `pending` status and sees only its own application until an administrator approves it.
 
 ## Architecture
 
-- `app/` — Next.js App Router entry and global visual system
+- `app/` — Next.js App Router entry, OAuth callback, and authenticated Server Actions
 - `components/` — portal UI and code-native icon set
-- `data/` — typed mock records
-- `services/` — repository-style data access for members, events, announcements, and session
+- `data/` — shared domain types (no member records)
+- `lib/supabase/` — browser, server, admin, and session-refresh clients
+- `lib/portal-data.ts` — server-only portal data loader
+- `supabase/migrations/` — versioned database schema, grants, and RLS policies
 - `tests/` — desktop/mobile interaction smoke test
-
-The UI calls the service layer rather than accessing mock records directly. A future Firebase implementation can replace these services while keeping the component API stable.
 
 ## Privacy boundary
 
-The current project is a frontend prototype. UI role checks demonstrate intended behavior but are **not a security boundary**. Before using real student data, enforce authorization in Firebase Security Rules or trusted backend code:
+Authorization is enforced in PostgreSQL RLS and repeated inside privileged Server Actions:
 
 - members may read public profile fields and edit only their own profile;
 - organizers/admins may read private contacts;
 - role changes, account deactivation, and administrative writes require admin authorization;
-- invite codes must be validated and expire server-side.
+- signed-out visitors cannot read any club table;
+- the Supabase service-role key is server-only and never exposed to the browser.
 
-Before any public deployment, complete [PRE_LAUNCH_CHECKLIST.md](./PRE_LAUNCH_CHECKLIST.md). Do not publish the current mock member records as a real club database.
+Before sharing the production link with students, complete [PRE_LAUNCH_CHECKLIST.md](./PRE_LAUNCH_CHECKLIST.md).
 
 ## Artwork
 

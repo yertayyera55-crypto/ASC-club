@@ -1,0 +1,19 @@
+import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+
+export async function GET(request: Request) {
+  const { origin, searchParams } = new URL(request.url);
+  const code = searchParams.get("code");
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const destination = process.env.NODE_ENV === "development" || !forwardedHost
+    ? origin
+    : `https://${forwardedHost}`;
+
+  if (code) {
+    const supabase = await createClient();
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    if (!error) return NextResponse.redirect(destination);
+  }
+
+  return NextResponse.redirect(`${destination}/?auth_error=1`);
+}
