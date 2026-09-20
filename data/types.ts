@@ -47,6 +47,28 @@ export interface ClubEvent {
   category: string;
 }
 
+export type EventStatus = ClubEvent["status"];
+
+export interface EventInput {
+  id?: string;
+  title: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  location: string;
+  description: string;
+  status: EventStatus;
+  category: string;
+}
+
+export interface EventAttendee {
+  eventId: string;
+  userId: string;
+  name: string;
+  email: string;
+  ascId: string;
+}
+
 export interface Announcement {
   id: string;
   title: string;

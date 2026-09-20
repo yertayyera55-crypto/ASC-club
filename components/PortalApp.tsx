@@ -2,8 +2,8 @@
 
 import Image from "next/image";
 import { useMemo, useState, useTransition } from "react";
-import { saveProfileAction, setRsvpAction, signOutAction, updateMemberAccessAction } from "@/app/actions";
-import type { Announcement, ClubEvent, Direction, Level, Member, ProfileInput, ProfileStatus, Role } from "@/data/types";
+import { saveEventAction, saveProfileAction, setRsvpAction, signOutAction, updateMemberAccessAction } from "@/app/actions";
+import type { Announcement, ClubEvent, Direction, EventAttendee, EventInput, EventStatus, Level, Member, ProfileInput, ProfileStatus, Role } from "@/data/types";
 import type { PortalState } from "@/lib/portal-data";
 import { Icon } from "./Icons";
 
@@ -37,6 +37,7 @@ function ActionButton({ active, onClick, children }: { active?: boolean; onClick
 export function PortalApp({ initialState }: { initialState: PortalState }) {
   const [page, setPage] = useState<Page>("home");
   const [user, setUser] = useState<Member>(initialState.user);
+  const [events, setEvents] = useState<ClubEvent[]>(initialState.events);
   const [rsvps, setRsvps] = useState<string[]>(initialState.rsvps);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -61,11 +62,11 @@ export function PortalApp({ initialState }: { initialState: PortalState }) {
     <div className="app-shell">
       <Header page={page} items={visibleNav} onNavigate={navigate} menuOpen={menuOpen} setMenuOpen={setMenuOpen} />
       <main key={page} className="page-enter">
-        {page === "home" && <HomePage user={user} events={initialState.events} members={initialState.members} announcements={initialState.announcements} rsvps={rsvps} onRsvp={toggleRsvp} onNavigate={navigate} />}
-        {page === "events" && <EventsPage events={initialState.events} rsvps={rsvps} onRsvp={toggleRsvp} />}
+        {page === "home" && <HomePage user={user} events={events} members={initialState.members} announcements={initialState.announcements} rsvps={rsvps} onRsvp={toggleRsvp} onNavigate={navigate} />}
+        {page === "events" && <EventsPage events={events} rsvps={rsvps} onRsvp={toggleRsvp} />}
         {page === "members" && <MembersPage viewer={user} members={initialState.members} />}
         {page === "profile" && <ProfilePage user={user} onSave={setUser} />}
-        {page === "admin" && <AdminPage members={initialState.adminMembers} viewer={user} />}
+        {page === "admin" && <AdminPage members={initialState.adminMembers} viewer={user} events={events} attendees={initialState.eventAttendees} onEventsChange={setEvents} />}
       </main>
       <MobileNav page={page} items={visibleNav} onNavigate={navigate} />
       <footer className="site-footer">
@@ -252,7 +253,13 @@ function ProfileForm({ draft, setDraft, onSave, pending }: { draft: Member; setD
   return <form className="profile-form" onSubmit={(e) => { e.preventDefault(); onSave(); }}><div className="form-grid"><label>First name<input required value={draft.firstName} onChange={e => update("firstName", e.target.value)} /></label><label>Last name<input required value={draft.lastName} onChange={e => update("lastName", e.target.value)} /></label><label>Grade<select value={draft.grade} onChange={e => update("grade", Number(e.target.value))}>{[7,8,9,10,11,12].map(n => <option key={n}>{n}</option>)}</select></label><label>Direction<select value={draft.direction} onChange={e => update("direction", e.target.value as Direction)}><option>Machine Learning</option><option>Arduino</option><option>Both</option><option>Not sure</option></select></label><label>Experience<select value={draft.level} onChange={e => update("level", e.target.value as Level)}><option>Beginner</option><option>Intermediate</option><option>Advanced</option></select></label><label className="checkbox-label"><input type="checkbox" checked={draft.competitionInterest} onChange={e => update("competitionInterest", e.target.checked)} /> Interested in competitions</label><label className="wide">Short bio<textarea maxLength={500} value={draft.bio} onChange={e => update("bio", e.target.value)} rows={3} /></label><label className="wide">Skills <small>Separate with commas</small><input value={draft.skills.join(", ")} onChange={e => update("skills", e.target.value.split(",").map(s => s.trim()).filter(Boolean))} /></label><label>Email<input required type="email" value={draft.email} onChange={e => update("email", e.target.value)} /></label><label>WhatsApp<input value={draft.whatsapp} onChange={e => update("whatsapp", e.target.value)} /></label></div><button className="button form-save" type="submit" disabled={pending}><span>{pending ? "Saving…" : "Save changes"}</span><Icon name="arrow" /></button></form>;
 }
 
-function AdminPage({ members: initialMembers, viewer }: { members: Member[]; viewer: Member }) {
+function newEventDraft(): EventInput {
+  const date = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Almaty", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  return { title: "", date, startTime: "16:00", endTime: "18:00", location: "", description: "", status: "upcoming", category: "Workshop" };
+}
+
+function AdminPage({ members: initialMembers, viewer, events, attendees, onEventsChange }: { members: Member[]; viewer: Member; events: ClubEvent[]; attendees: EventAttendee[]; onEventsChange: (events: ClubEvent[]) => void }) {
+  const [workspace, setWorkspace] = useState<"events" | "members">("events");
   const [members, setMembers] = useState(initialMembers);
   const [query, setQuery] = useState("");
   const [grade, setGrade] = useState("All");
@@ -261,7 +268,12 @@ function AdminPage({ members: initialMembers, viewer }: { members: Member[]; vie
   const [competitionOnly, setCompetitionOnly] = useState(false);
   const [message, setMessage] = useState("");
   const [pending, startTransition] = useTransition();
+  const [eventDraft, setEventDraft] = useState<EventInput | null>(null);
+  const [eventMessage, setEventMessage] = useState("");
+  const [expandedEvent, setExpandedEvent] = useState<string | null>(null);
+  const [eventPending, startEventTransition] = useTransition();
   const filtered = useMemo(() => members.filter(member => `${member.firstName} ${member.lastName} ${member.email}`.toLowerCase().includes(query.toLowerCase()) && (grade === "All" || (member.profileComplete && member.grade === Number(grade))) && (direction === "All" || (member.profileComplete && member.direction === direction)) && (level === "All" || (member.profileComplete && member.level === level)) && (!competitionOnly || member.competitionInterest)), [members, query, grade, direction, level, competitionOnly]);
+  const orderedEvents = useMemo(() => [...events].sort((a, b) => `${b.date}T${b.startTime}`.localeCompare(`${a.date}T${a.startTime}`)), [events]);
 
   const updateAccess = (member: Member, role: Role, status: ProfileStatus) => {
     setMessage("");
@@ -276,11 +288,85 @@ function AdminPage({ members: initialMembers, viewer }: { members: Member[]; vie
     });
   };
 
+  const saveEvent = (input: EventInput) => {
+    setEventMessage("");
+    startEventTransition(async () => {
+      const result = await saveEventAction(input);
+      if (!result.ok) {
+        setEventMessage(result.message);
+        return;
+      }
+      const nextEvents = events.some((event) => event.id === result.event.id)
+        ? events.map((event) => event.id === result.event.id ? result.event : event)
+        : [...events, result.event];
+      onEventsChange(nextEvents);
+      setEventDraft(null);
+      setEventMessage(input.id ? "Event updated." : "Event published.");
+    });
+  };
+
+  const changeEventStatus = (event: ClubEvent, status: EventStatus) => saveEvent({
+    id: event.id,
+    title: event.title,
+    date: event.date,
+    startTime: event.startTime,
+    endTime: event.endTime,
+    location: event.location,
+    description: event.description,
+    category: event.category,
+    status,
+  });
+
+  const editEvent = (event: ClubEvent) => {
+    setEventMessage("");
+    setEventDraft({ id: event.id, title: event.title, date: event.date, startTime: event.startTime, endTime: event.endTime, location: event.location, description: event.description, status: event.status, category: event.category });
+  };
+
   return <div className="content-page admin-page">
-    <header className="page-header"><div><p className="eyebrow">ORGANIZER WORKSPACE</p><h1>Member database</h1></div><p>{viewer.role === "admin" ? "Review applications, assign roles and find members by their interests." : "Review applications and find members by their interests. Access changes stay with administrators."} Private contacts stay restricted to this workspace.</p></header>
-    <div className="admin-stats"><div><strong>{members.filter(m => m.status === "active").length}</strong><span>Active members</span></div><div><strong>{members.filter(m => m.status === "pending").length}</strong><span>Pending approval</span></div><div><strong>{members.filter(m => m.competitionInterest).length}</strong><span>Competition interest</span></div></div>
-    <div className="filter-bar admin-filters"><label className="search-field"><Icon name="search" /><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search members…" /></label><label><span>Grade</span><select value={grade} onChange={e => setGrade(e.target.value)}><option>All</option>{[7,8,9,10,11,12].map(n => <option key={n}>{n}</option>)}</select></label><label><span>Direction</span><select value={direction} onChange={e => setDirection(e.target.value as Direction | "All")}><option>All</option><option>Machine Learning</option><option>Arduino</option><option>Both</option><option>Not sure</option></select></label><label><span>Level</span><select value={level} onChange={e => setLevel(e.target.value as Level | "All")}><option>All</option><option>Beginner</option><option>Intermediate</option><option>Advanced</option></select></label><label className="competition-filter"><input type="checkbox" checked={competitionOnly} onChange={e => setCompetitionOnly(e.target.checked)} /> Competition interest</label></div>
-    <div className="admin-result"><strong>{filtered.length}</strong> matching members {pending ? "· SAVING" : ""}{message ? <span role="status"> · {message}</span> : null}</div>
-    <div className="table-wrap"><table><thead><tr><th>Name</th><th>Grade</th><th>Direction</th><th>Role</th><th>Status</th><th>Private contact</th></tr></thead><tbody>{filtered.map(member => <tr key={member.id}><td><strong>{member.profileComplete ? `${member.firstName} ${member.lastName}` : "Profile incomplete"}</strong><small>{member.ascId}</small></td><td>{member.profileComplete ? member.grade : "—"}</td><td>{member.profileComplete ? member.direction : "—"}</td><td>{viewer.role === "admin" ? <select aria-label={`Role for ${member.firstName || member.email}`} value={member.role} disabled={pending} onChange={(event) => updateAccess(member, event.target.value as Role, member.status)}><option value="member">Member</option><option value="organizer">Organizer</option><option value="admin">Admin</option></select> : member.role}</td><td>{viewer.role === "admin" ? <select aria-label={`Status for ${member.firstName || member.email}`} value={member.status} disabled={pending} onChange={(event) => updateAccess(member, member.role, event.target.value as ProfileStatus)}><option value="pending">Pending</option><option value="active">Active</option><option value="suspended">Suspended</option></select> : member.status}</td><td><a href={`mailto:${member.email}`}>{member.email}</a><small>{member.whatsapp || "No WhatsApp"}</small></td></tr>)}</tbody></table></div>
+    <header className="page-header"><div><p className="eyebrow">ORGANIZER WORKSPACE</p><h1>Club dashboard</h1></div><p>Publish events, review attendance and manage the member directory from one workspace.</p></header>
+    <div className="workspace-tabs" role="tablist" aria-label="Dashboard sections"><button role="tab" aria-selected={workspace === "events"} className={workspace === "events" ? "active" : ""} onClick={() => setWorkspace("events")}>Events <sup>{events.length}</sup></button><button role="tab" aria-selected={workspace === "members"} className={workspace === "members" ? "active" : ""} onClick={() => setWorkspace("members")}>Members <sup>{members.length}</sup></button></div>
+
+    {workspace === "events" ? <section className="event-manager" aria-label="Event management">
+      <div className="workspace-heading"><div><p className="eyebrow">EVENTS / PUBLISHING</p><h2>Event schedule</h2></div><button className="button" type="button" onClick={() => { setEventMessage(""); setEventDraft(newEventDraft()); }}><Icon name="calendar" /><span>New event</span></button></div>
+      {eventDraft ? <EventEditor draft={eventDraft} setDraft={setEventDraft} onSave={saveEvent} onCancel={() => setEventDraft(null)} pending={eventPending} /> : null}
+      {eventMessage ? <p className={`workspace-message ${eventMessage.includes("Could not") || eventMessage.includes("valid") || eventMessage.includes("must") || eventMessage.includes("Only") ? "error" : ""}`} role="status">{eventMessage}</p> : null}
+      <div className="managed-event-list">
+        {orderedEvents.length === 0 ? <div className="empty-state"><strong>No events published.</strong><span>Create the first workshop or club session.</span></div> : null}
+        {orderedEvents.map((event) => {
+          const eventAttendees = attendees.filter((attendee) => attendee.eventId === event.id);
+          const isExpanded = expandedEvent === event.id;
+          return <article className={`managed-event ${event.status === "cancelled" ? "is-cancelled" : ""}`} key={event.id}>
+            <div className="managed-event-date"><span>{formatDate(event.date, "month")}</span><strong>{formatDate(event.date, "day")}</strong></div>
+            <div className="managed-event-copy"><div><span className={`event-status status-${event.status}`}>{event.status}</span><small>{event.category}</small></div><h3>{event.title}</h3><p>{event.location} · {event.startTime}—{event.endTime}</p></div>
+            <button className="attendance-toggle" type="button" onClick={() => setExpandedEvent(isExpanded ? null : event.id)} aria-expanded={isExpanded}><strong>{event.attendeeCount}</strong><span>attending</span></button>
+            <div className="managed-event-actions"><button type="button" onClick={() => editEvent(event)}>Edit</button><button type="button" disabled={eventPending} onClick={() => changeEventStatus(event, event.status === "cancelled" ? "upcoming" : "cancelled")}>{event.status === "cancelled" ? "Publish" : "Cancel"}</button></div>
+            {isExpanded ? <div className="attendee-list">{eventAttendees.length ? eventAttendees.map((attendee) => <div key={attendee.userId}><strong>{attendee.name}</strong><span>{attendee.ascId}</span><a href={`mailto:${attendee.email}`}>{attendee.email}</a></div>) : <p>No one has joined this event yet.</p>}</div> : null}
+          </article>;
+        })}
+      </div>
+    </section> : <section aria-label="Member management">
+      <div className="admin-stats"><div><strong>{members.filter(m => m.status === "active").length}</strong><span>Active members</span></div><div><strong>{members.filter(m => m.status === "pending").length}</strong><span>Pending approval</span></div><div><strong>{members.filter(m => m.competitionInterest).length}</strong><span>Competition interest</span></div></div>
+      <div className="filter-bar admin-filters"><label className="search-field"><Icon name="search" /><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search members…" /></label><label><span>Grade</span><select value={grade} onChange={e => setGrade(e.target.value)}><option>All</option>{[7,8,9,10,11,12].map(n => <option key={n}>{n}</option>)}</select></label><label><span>Direction</span><select value={direction} onChange={e => setDirection(e.target.value as Direction | "All")}><option>All</option><option>Machine Learning</option><option>Arduino</option><option>Both</option><option>Not sure</option></select></label><label><span>Level</span><select value={level} onChange={e => setLevel(e.target.value as Level | "All")}><option>All</option><option>Beginner</option><option>Intermediate</option><option>Advanced</option></select></label><label className="competition-filter"><input type="checkbox" checked={competitionOnly} onChange={e => setCompetitionOnly(e.target.checked)} /> Competition interest</label></div>
+      <div className="admin-result"><strong>{filtered.length}</strong> matching members {pending ? "· SAVING" : ""}{message ? <span role="status"> · {message}</span> : null}</div>
+      <div className="table-wrap"><table><thead><tr><th>Name</th><th>Grade</th><th>Direction</th><th>Role</th><th>Status</th><th>Private contact</th></tr></thead><tbody>{filtered.map(member => <tr key={member.id}><td><strong>{member.profileComplete ? `${member.firstName} ${member.lastName}` : "Profile incomplete"}</strong><small>{member.ascId}</small></td><td>{member.profileComplete ? member.grade : "—"}</td><td>{member.profileComplete ? member.direction : "—"}</td><td>{viewer.role === "admin" ? <select aria-label={`Role for ${member.firstName || member.email}`} value={member.role} disabled={pending} onChange={(event) => updateAccess(member, event.target.value as Role, member.status)}><option value="member">Member</option><option value="organizer">Organizer</option><option value="admin">Admin</option></select> : member.role}</td><td>{viewer.role === "admin" ? <select aria-label={`Status for ${member.firstName || member.email}`} value={member.status} disabled={pending} onChange={(event) => updateAccess(member, member.role, event.target.value as ProfileStatus)}><option value="pending">Pending</option><option value="active">Active</option><option value="suspended">Suspended</option></select> : member.status}</td><td><a href={`mailto:${member.email}`}>{member.email}</a><small>{member.whatsapp || "No WhatsApp"}</small></td></tr>)}</tbody></table></div>
+    </section>}
   </div>;
+}
+
+function EventEditor({ draft, setDraft, onSave, onCancel, pending }: { draft: EventInput; setDraft: (draft: EventInput) => void; onSave: (draft: EventInput) => void; onCancel: () => void; pending: boolean }) {
+  const update = <Key extends keyof EventInput>(key: Key, value: EventInput[Key]) => setDraft({ ...draft, [key]: value });
+  return <form className="event-editor" onSubmit={(event) => { event.preventDefault(); onSave(draft); }}>
+    <div className="event-editor-title"><div><p className="eyebrow">{draft.id ? "EDIT EVENT" : "NEW EVENT"}</p><h3>{draft.id ? "Update the announcement" : "Publish to the club"}</h3></div><button type="button" onClick={onCancel} aria-label="Close event editor"><Icon name="close" /></button></div>
+    <div className="form-grid event-form-grid">
+      <label className="wide">Event title<input required maxLength={100} value={draft.title} onChange={(event) => update("title", event.target.value)} placeholder="Arduino prototyping workshop" /></label>
+      <label>Category<input required maxLength={50} value={draft.category} onChange={(event) => update("category", event.target.value)} placeholder="Workshop" /></label>
+      <label>Location<input required maxLength={120} value={draft.location} onChange={(event) => update("location", event.target.value)} placeholder="Engineering Block, Lab 2" /></label>
+      <label>Date<input required type="date" value={draft.date} onChange={(event) => update("date", event.target.value)} /></label>
+      <label>Starts<input required type="time" value={draft.startTime} onChange={(event) => update("startTime", event.target.value)} /></label>
+      <label>Ends<input required type="time" value={draft.endTime} onChange={(event) => update("endTime", event.target.value)} /></label>
+      <label>Status<select value={draft.status} onChange={(event) => update("status", event.target.value as EventStatus)}><option value="upcoming">Upcoming</option><option value="past">Past</option><option value="cancelled">Cancelled</option></select></label>
+      <label className="wide">Description<textarea required maxLength={1000} rows={4} value={draft.description} onChange={(event) => update("description", event.target.value)} placeholder="What members will learn, build or prepare." /></label>
+    </div>
+    <div className="event-editor-actions"><button className="button" type="submit" disabled={pending}><span>{pending ? "Publishing…" : draft.id ? "Save event" : "Publish event"}</span><Icon name="arrow" /></button><button className="text-link" type="button" onClick={onCancel}>Discard</button></div>
+  </form>;
 }

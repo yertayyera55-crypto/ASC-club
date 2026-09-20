@@ -1,5 +1,5 @@
 import "server-only";
-import type { Announcement, ClubEvent, Direction, Level, Member, ProfileStatus, Role } from "@/data/types";
+import type { Announcement, ClubEvent, Direction, EventAttendee, Level, Member, ProfileStatus, Role } from "@/data/types";
 import { createClient } from "@/lib/supabase/server";
 
 type ProfileRow = {
@@ -28,6 +28,7 @@ export type PortalState = {
   adminMembers: Member[];
   announcements: Announcement[];
   rsvps: string[];
+  eventAttendees: EventAttendee[];
 };
 
 export function isProfileComplete(profile: AccountProfile) {
@@ -91,16 +92,20 @@ export async function loadAccount() {
 
 export async function loadPortalState(account: AccountProfile): Promise<PortalState> {
   const supabase = await createClient();
-  const profileQuery = account.role === "admin" || account.role === "organizer"
+  const isStaff = account.role === "admin" || account.role === "organizer";
+  const profileQuery = isStaff
     ? supabase.from("profiles").select("*").order("member_number")
     : supabase.from("profiles").select("*").eq("status", "active").order("member_number");
+  const rsvpQuery = isStaff
+    ? supabase.from("event_rsvps").select("event_id,user_id")
+    : supabase.from("event_rsvps").select("event_id,user_id").eq("user_id", account.id);
 
   const [profilesResult, contactsResult, eventsResult, announcementsResult, rsvpsResult] = await Promise.all([
     profileQuery,
     supabase.from("member_contacts").select("user_id,email,whatsapp"),
     supabase.from("events").select("*").order("starts_at"),
     supabase.from("announcements").select("*").order("published_at", { ascending: false }),
-    supabase.from("event_rsvps").select("event_id").eq("user_id", account.id),
+    rsvpQuery,
   ]);
 
   const failed = [profilesResult, contactsResult, eventsResult, announcementsResult, rsvpsResult].find((result) => result.error);
@@ -110,6 +115,7 @@ export async function loadPortalState(account: AccountProfile): Promise<PortalSt
   const contacts = (contactsResult.data ?? []) as ContactRow[];
   const contactByUser = new Map(contacts.map((contact) => [contact.user_id, contact]));
   const allMembers = profiles.map((profile) => toMember(profile, contactByUser.get(profile.id)));
+  const memberById = new Map(allMembers.map((member) => [member.id, member]));
 
   const events: ClubEvent[] = (eventsResult.data ?? []).map((event) => ({
     id: event.id,
@@ -137,6 +143,10 @@ export async function loadPortalState(account: AccountProfile): Promise<PortalSt
     members: allMembers.filter((member) => member.status === "active"),
     adminMembers: allMembers,
     announcements,
-    rsvps: (rsvpsResult.data ?? []).map((item) => item.event_id),
+    rsvps: (rsvpsResult.data ?? []).filter((item) => item.user_id === account.id).map((item) => item.event_id),
+    eventAttendees: isStaff ? (rsvpsResult.data ?? []).flatMap((item) => {
+      const member = memberById.get(item.user_id);
+      return member ? [{ eventId: item.event_id, userId: item.user_id, name: `${member.firstName} ${member.lastName}`, email: member.email, ascId: member.ascId }] : [];
+    }) : [],
   };
 }
