@@ -11,7 +11,7 @@ const sections = [
     title: "What we collect",
     paragraphs: [
       "When you sign in with Google, we receive your name, email address, profile image, and the Google account identifier needed to keep you signed in.",
-      "Your member profile may include grade, direction, experience level, interests, a short biography, contact details, competition interest, event registrations, and account approval status. Please provide only information relevant to club participation.",
+      "Your member profile may include grade, direction, experience level, interests, a short biography, contact details, competition interest, meeting availability, event registrations, and account approval status. Please provide only information relevant to club participation.",
     ],
   },
   {
@@ -24,7 +24,7 @@ const sections = [
   {
     title: "Who can see it",
     paragraphs: [
-      "Approved members can see the public fields of other approved member profiles. Contact details are restricted to authorized organizers and administrators.",
+      "Approved members can see public profile fields and who is interested in a competition so they can find teammates. Contact details and meeting availability are restricted to authorized organizers and administrators.",
       "The portal uses Google for sign-in, Supabase for authentication and database services, and Vercel for hosting. These providers process data only as needed to provide their services.",
     ],
   },
@@ -45,5 +45,5 @@ const sections = [
 ];
 
 export default function PrivacyPage() {
-  return <PublicDocument eyebrow="MEMBER DATA" title="Privacy notice." updated="September 20, 2026" sections={sections} />;
+  return <PublicDocument eyebrow="MEMBER DATA" title="Privacy notice." updated="September 21, 2026" sections={sections} />;
 }

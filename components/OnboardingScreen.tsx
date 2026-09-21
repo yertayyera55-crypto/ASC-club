@@ -4,8 +4,9 @@ import { useState, useTransition } from "react";
 import { saveProfileAction, signOutAction } from "@/app/actions";
 import type { Direction, Level, ProfileInput, ProfileStatus } from "@/data/types";
 import type { AccountProfile } from "@/lib/portal-data";
+import { AvailabilityPicker } from "./AvailabilityPicker";
 
-const directions: Direction[] = ["Machine Learning", "Arduino", "Both", "Not sure"];
+const directions: Direction[] = ["Machine Learning", "Arduino", "Programming", "Both", "Not sure"];
 const levels: Level[] = ["Beginner", "Intermediate", "Advanced"];
 
 export function OnboardingScreen({ profile }: { profile: AccountProfile }) {
@@ -17,6 +18,7 @@ export function OnboardingScreen({ profile }: { profile: AccountProfile }) {
     level: profile.level ?? "Beginner",
     skills: profile.skills,
     competitionInterest: profile.competition_interest,
+    availabilityDays: profile.availability_days,
     bio: profile.bio,
     email: profile.email,
     whatsapp: profile.whatsapp,
@@ -59,6 +61,7 @@ export function OnboardingScreen({ profile }: { profile: AccountProfile }) {
           <label className="checkbox-label"><input type="checkbox" checked={draft.competitionInterest} onChange={(event) => setDraft({ ...draft, competitionInterest: event.target.checked })} /> Interested in competitions</label>
           <label className="wide">Short bio<textarea rows={3} maxLength={500} value={draft.bio} onChange={(event) => setDraft({ ...draft, bio: event.target.value })} /></label>
           <label className="wide">Skills <small>Separate with commas</small><input value={draft.skills.join(", ")} onChange={(event) => setDraft({ ...draft, skills: event.target.value.split(",").map((skill) => skill.trim()).filter(Boolean) })} /></label>
+          <AvailabilityPicker value={draft.availabilityDays} onChange={(availabilityDays) => setDraft({ ...draft, availabilityDays })} />
           <label>Email<input required type="email" value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} /></label>
           <label>WhatsApp<input value={draft.whatsapp} onChange={(event) => setDraft({ ...draft, whatsapp: event.target.value })} /></label>
         </div>

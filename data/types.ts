@@ -1,7 +1,9 @@
 export type Role = "member" | "organizer" | "admin";
 export type ProfileStatus = "pending" | "active" | "suspended";
-export type Direction = "Machine Learning" | "Arduino" | "Both" | "Not sure";
+export type Direction = "Machine Learning" | "Arduino" | "Programming" | "Both" | "Not sure";
 export type Level = "Beginner" | "Intermediate" | "Advanced";
+export type Weekday = "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
+export type EventType = "meeting" | "competition";
 
 export interface Member {
   id: string;
@@ -13,6 +15,7 @@ export interface Member {
   level: Level;
   skills: string[];
   competitionInterest: boolean;
+  availabilityDays: Weekday[];
   role: Role;
   email: string;
   whatsapp: string;
@@ -29,6 +32,7 @@ export interface ProfileInput {
   level: Level;
   skills: string[];
   competitionInterest: boolean;
+  availabilityDays: Weekday[];
   bio: string;
   email: string;
   whatsapp: string;
@@ -45,6 +49,8 @@ export interface ClubEvent {
   attendeeCount: number;
   status: "upcoming" | "past" | "cancelled";
   category: string;
+  eventType: EventType;
+  externalUrl: string;
 }
 
 export type EventStatus = ClubEvent["status"];
@@ -59,6 +65,8 @@ export interface EventInput {
   description: string;
   status: EventStatus;
   category: string;
+  eventType: EventType;
+  externalUrl: string;
 }
 
 export interface EventAttendee {
@@ -67,6 +75,16 @@ export interface EventAttendee {
   name: string;
   email: string;
   ascId: string;
+}
+
+export interface EventInterest {
+  eventId: string;
+  userId: string;
+  name: string;
+  ascId: string;
+  grade: number;
+  direction: Direction;
+  skills: string[];
 }
 
 export interface Announcement {
