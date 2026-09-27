@@ -112,19 +112,34 @@ export async function saveProfileAction(input: ProfileInput): Promise<ActionResu
     bio: input.bio.trim(),
   };
 
+  const saveAvailability = async () => {
+    const availabilityDays = [...new Set(input.availabilityDays)];
+    const inserted = await auth.supabase.from("member_preferences").insert({
+      user_id: auth.userId,
+      availability_days: availabilityDays,
+    });
+    if (!inserted.error || inserted.error.code !== "23505") return inserted;
+
+    return auth.supabase.from("member_preferences")
+      .update({ availability_days: availabilityDays })
+      .eq("user_id", auth.userId);
+  };
+
   const [profileResult, contactResult, preferenceResult] = await Promise.all([
     auth.supabase.from("profiles").update(profileUpdate).eq("id", auth.userId),
     auth.supabase.from("member_contacts").update({
       email: input.email.trim().toLowerCase(),
       whatsapp: input.whatsapp.trim(),
     }).eq("user_id", auth.userId),
-    auth.supabase.from("member_preferences").upsert({
-      user_id: auth.userId,
-      availability_days: [...new Set(input.availabilityDays)],
-    }, { onConflict: "user_id" }),
+    saveAvailability(),
   ]);
 
   if (profileResult.error || contactResult.error || preferenceResult.error) {
+    console.error("Profile save failed", {
+      profile: profileResult.error?.code,
+      contact: contactResult.error?.code,
+      preferences: preferenceResult.error?.code,
+    });
     return { ok: false, message: "Could not save your profile. Please try again." };
   }
 
