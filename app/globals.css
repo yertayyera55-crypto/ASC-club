@@ -104,6 +104,11 @@ svg { width: 20px; height: 20px; }
 .gate-intro h1 { grid-column: 1; margin: 28px 0 0; font-size: clamp(64px, 8vw, 110px); line-height: .82; letter-spacing: -6px; }.gate-intro > p:last-child { grid-column: 2; grid-row: 1 / span 2; align-self: end; color: var(--muted); line-height: 1.55; }
 .gate-form { padding: 50px 0; }.gate-actions { display: flex; align-items: center; gap: 24px; margin-top: 34px; }.gate-actions p { margin: 0; color: var(--muted); font-size: 12px; }
 .gate-message { min-height: 100svh; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; max-width: 720px; }.gate-message h1 { margin: 30px 0 20px; font-size: clamp(70px, 10vw, 130px); line-height: .82; letter-spacing: -7px; }.gate-message > p:not(.eyebrow) { color: var(--muted); line-height: 1.6; max-width: 540px; }.gate-message form { margin-top: 28px; }
+.gate-confirmation { min-height: calc(100svh - 86px); padding: 70px 0; }
+.gate-status { display: inline-flex; align-items: center; gap: 12px; margin: 26px 0 10px; padding: 12px 15px; border: 1px solid var(--ink); font: 10px/1.2 "Courier New", monospace; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; }
+.gate-confirmation-actions { display: flex; align-items: center; gap: 28px; margin-top: 22px; }
+.gate-confirmation-actions .button { text-decoration: none; }
+.gate-confirmation-actions .text-link { border: 0; border-bottom: 1px solid currentColor; background: none; padding: 5px 0; cursor: pointer; }
 .empty-state { min-height: 150px; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 8px; border-bottom: 1px solid #c7c6c0; }.empty-state strong { font-size: 18px; }.empty-state span { color: var(--muted); font-size: 12px; }
 .form-error { margin: 18px 0 0; color: #a53116; font-size: 12px; }.profile-signout { margin-top: 28px; }
 .table-wrap select { min-width: 105px; border: 0; border-bottom: 1px solid #aaa9a3; background: transparent; padding: 7px 18px 7px 0; font-size: 11px; }.table-wrap select:disabled { opacity: .6; }
@@ -356,7 +361,7 @@ td strong, td small { display: block; } td small { color: var(--muted); margin-t
   .auth-copy > p:not(.eyebrow):not(.auth-message) { max-width: 330px; margin-bottom: 24px; font-size: 13px; }.auth-copy > small { font-size: 8px; max-width: 330px; }
   .auth-button { min-height: 48px; width: 100%; max-width: 330px; justify-content: center; }
   .auth-system { display: none; }
-  .gate-page { width: calc(100% - 32px); padding-bottom: 44px; }.gate-header { height: 72px; }.gate-intro { min-height: 0; display: block; padding: 54px 0 35px; }.gate-intro h1 { font-size: 60px; letter-spacing: -4px; margin: 26px 0; }.gate-intro > p:last-child { font-size: 13px; }.gate-form { padding: 34px 0; }.gate-actions { align-items: flex-start; flex-direction: column; }.gate-message h1 { font-size: 70px; letter-spacing: -4px; }
+  .gate-page { width: calc(100% - 32px); padding-bottom: 44px; }.gate-header { height: 72px; }.gate-intro { min-height: 0; display: block; padding: 54px 0 35px; }.gate-intro h1 { font-size: 60px; letter-spacing: -4px; margin: 26px 0; }.gate-intro > p:last-child { font-size: 13px; }.gate-form { padding: 34px 0; }.gate-actions { align-items: flex-start; flex-direction: column; }.gate-message h1 { font-size: 70px; letter-spacing: -4px; }.gate-confirmation { min-height: calc(100svh - 72px); padding: 70px 0; }.gate-confirmation-actions { align-items: flex-start; flex-direction: column; gap: 20px; }
   .demo-toolbar-inner { padding: 8px 0; flex-wrap: wrap; gap: 8px 12px; }
   .demo-toolbar p { margin-left: auto; }
   .demo-toolbar small { width: 100%; text-align: right; font-size: 6px; }

@@ -9,7 +9,7 @@ import { AvailabilityPicker } from "./AvailabilityPicker";
 const directions: Direction[] = ["Machine Learning", "Arduino", "Programming", "Both", "Not sure"];
 const levels: Level[] = ["Beginner", "Intermediate", "Advanced"];
 
-export function OnboardingScreen({ profile }: { profile: AccountProfile }) {
+export function OnboardingScreen({ profile, profileComplete }: { profile: AccountProfile; profileComplete: boolean }) {
   const [draft, setDraft] = useState<ProfileInput>({
     firstName: profile.first_name,
     lastName: profile.last_name,
@@ -24,6 +24,7 @@ export function OnboardingScreen({ profile }: { profile: AccountProfile }) {
     whatsapp: profile.whatsapp,
   });
   const [message, setMessage] = useState("");
+  const [applicationSaved, setApplicationSaved] = useState(profile.status === "pending" && profileComplete);
   const [pending, startTransition] = useTransition();
   const isSuspended = profile.status === "suspended";
 
@@ -32,15 +33,39 @@ export function OnboardingScreen({ profile }: { profile: AccountProfile }) {
     setMessage("");
     startTransition(async () => {
       const result = await saveProfileAction(draft);
-      setMessage(result.ok
-        ? profile.status === "active" ? "Profile saved. Opening the portal…" : "Application saved. An administrator can now review it."
-        : result.message);
-      if (result.ok && profile.status === "active") window.location.reload();
+      if (!result.ok) {
+        setMessage(result.message);
+        return;
+      }
+      if (profile.status === "active") {
+        window.location.reload();
+        return;
+      }
+      setApplicationSaved(true);
     });
   };
 
   if (isSuspended) {
     return <main className="gate-page"><section className="gate-message"><p className="eyebrow">ASC / ACCESS</p><h1>Access paused.</h1><p>Your club portal access is currently suspended. Contact an ASC administrator if you think this is a mistake.</p><form action={signOutAction}><button className="text-link">Sign out</button></form></section></main>;
+  }
+
+  if (applicationSaved) {
+    return (
+      <main className="gate-page">
+        <header className="gate-header"><b>ASC</b><span>MEMBER REGISTRATION</span><form action={signOutAction}><button type="submit">Sign out</button></form></header>
+        <section className="gate-message gate-confirmation">
+          <p className="eyebrow">ASC / APPLICATION RECEIVED</p>
+          <h1>Application<br />saved.</h1>
+          <p>Your profile is complete and waiting for an ASC administrator to approve your membership. The members, events and projects pages will open after approval.</p>
+          <div className="gate-status"><span className="orange-dot" aria-hidden="true" /> Awaiting approval</div>
+          <p>You do not need to register again. Return to this page after approval to enter the club portal.</p>
+          <div className="gate-confirmation-actions">
+            <a className="button" href="/">Check access</a>
+            <button className="text-link" type="button" onClick={() => setApplicationSaved(false)}>Edit application</button>
+          </div>
+        </section>
+      </main>
+    );
   }
 
   return (

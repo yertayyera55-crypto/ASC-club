@@ -9,7 +9,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ a
   const [{ auth_error: authError }, { account }] = await Promise.all([searchParams, loadAccount()]);
 
   if (!account) return <AuthScreen authError={authError === "1"} />;
-  if (account.status !== "active" || !isProfileComplete(account)) return <OnboardingScreen profile={account} />;
+  const profileComplete = isProfileComplete(account);
+  if (account.status !== "active" || !profileComplete) return <OnboardingScreen profile={account} profileComplete={profileComplete} />;
 
   const state = await loadPortalState(account);
   return <PortalApp initialState={state} />;
