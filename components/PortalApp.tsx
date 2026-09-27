@@ -3,9 +3,9 @@
 import Image from "next/image";
 import { useMemo, useState, useTransition } from "react";
 import { saveEventAction, saveProfileAction, setEventInterestAction, setRsvpAction, signOutAction, updateMemberAccessAction } from "@/app/actions";
-import type { Announcement, ClubEvent, Direction, EventAttendee, EventInput, EventInterest, EventStatus, EventType, Level, Member, ProfileInput, ProfileStatus, Role } from "@/data/types";
+import type { Announcement, ClubEvent, Direction, EventAttendee, EventInput, EventInterest, EventStatus, EventType, Level, Member, ProfileInput, ProfileStatus, Role, Weekday } from "@/data/types";
 import type { PortalState } from "@/lib/portal-data";
-import { AvailabilityPicker } from "./AvailabilityPicker";
+import { AvailabilityPicker, weekdays } from "./AvailabilityPicker";
 import { Icon } from "./Icons";
 
 type Page = "home" | "events" | "members" | "profile" | "admin";
@@ -38,6 +38,7 @@ function ActionButton({ active, onClick, children }: { active?: boolean; onClick
 export function PortalApp({ initialState }: { initialState: PortalState }) {
   const [page, setPage] = useState<Page>("home");
   const [user, setUser] = useState<Member>(initialState.user);
+  const [adminMembers, setAdminMembers] = useState<Member[]>(initialState.adminMembers);
   const [events, setEvents] = useState<ClubEvent[]>(initialState.events);
   const [rsvps, setRsvps] = useState<string[]>(initialState.rsvps);
   const [interestEventIds, setInterestEventIds] = useState<string[]>(initialState.interestEventIds);
@@ -81,7 +82,7 @@ export function PortalApp({ initialState }: { initialState: PortalState }) {
         {page === "events" && <EventsPage events={events} rsvps={rsvps} interestEventIds={interestEventIds} eventInterests={eventInterests} onRsvp={toggleRsvp} onInterest={toggleInterest} />}
         {page === "members" && <MembersPage viewer={user} members={initialState.members} />}
         {page === "profile" && <ProfilePage user={user} onSave={setUser} />}
-        {page === "admin" && <AdminPage members={initialState.adminMembers} viewer={user} events={events} attendees={initialState.eventAttendees} interests={eventInterests} onEventsChange={setEvents} />}
+        {page === "admin" && canViewPrivateContacts(user) && <AdminPage members={adminMembers.map((member) => member.id === user.id ? user : member)} onMembersChange={setAdminMembers} viewer={user} events={events} attendees={initialState.eventAttendees} interests={eventInterests} onEventsChange={setEvents} />}
       </main>
       <MobileNav page={page} items={visibleNav} onNavigate={navigate} />
       <footer className="site-footer">
@@ -281,9 +282,8 @@ function newEventDraft(): EventInput {
   return { title: "", date, startTime: "16:00", endTime: "18:00", location: "", description: "", status: "upcoming", category: "Workshop", eventType: "meeting", externalUrl: "" };
 }
 
-function AdminPage({ members: initialMembers, viewer, events, attendees, interests, onEventsChange }: { members: Member[]; viewer: Member; events: ClubEvent[]; attendees: EventAttendee[]; interests: EventInterest[]; onEventsChange: (events: ClubEvent[]) => void }) {
-  const [workspace, setWorkspace] = useState<"events" | "members">("events");
-  const [members, setMembers] = useState(initialMembers);
+function AdminPage({ members, onMembersChange, viewer, events, attendees, interests, onEventsChange }: { members: Member[]; onMembersChange: React.Dispatch<React.SetStateAction<Member[]>>; viewer: Member; events: ClubEvent[]; attendees: EventAttendee[]; interests: EventInterest[]; onEventsChange: (events: ClubEvent[]) => void }) {
+  const [workspace, setWorkspace] = useState<"events" | "availability" | "members">("events");
   const [query, setQuery] = useState("");
   const [grade, setGrade] = useState("All");
   const [direction, setDirection] = useState<Direction | "All">("All");
@@ -306,7 +306,7 @@ function AdminPage({ members: initialMembers, viewer, events, attendees, interes
         setMessage(result.message);
         return;
       }
-      setMembers((current) => current.map((item) => item.id === member.id ? { ...item, role, status } : item));
+      onMembersChange((current) => current.map((item) => item.id === member.id ? { ...item, role, status } : item));
       setMessage(`Access updated for ${member.firstName || member.email}.`);
     });
   };
@@ -349,7 +349,7 @@ function AdminPage({ members: initialMembers, viewer, events, attendees, interes
 
   return <div className="content-page admin-page">
     <header className="page-header"><div><p className="eyebrow">ORGANIZER WORKSPACE</p><h1>Club dashboard</h1></div><p>Publish events, review attendance and manage the member directory from one workspace.</p></header>
-    <div className="workspace-tabs" role="tablist" aria-label="Dashboard sections"><button role="tab" aria-selected={workspace === "events"} className={workspace === "events" ? "active" : ""} onClick={() => setWorkspace("events")}>Events <sup>{events.length}</sup></button><button role="tab" aria-selected={workspace === "members"} className={workspace === "members" ? "active" : ""} onClick={() => setWorkspace("members")}>Members <sup>{members.length}</sup></button></div>
+    <div className="workspace-tabs" role="tablist" aria-label="Dashboard sections"><button role="tab" aria-selected={workspace === "events"} className={workspace === "events" ? "active" : ""} onClick={() => setWorkspace("events")}>Events <sup>{events.length}</sup></button><button role="tab" aria-selected={workspace === "availability"} className={workspace === "availability" ? "active" : ""} onClick={() => setWorkspace("availability")}>Availability</button><button role="tab" aria-selected={workspace === "members"} className={workspace === "members" ? "active" : ""} onClick={() => setWorkspace("members")}>Members <sup>{members.length}</sup></button></div>
 
     {workspace === "events" ? <section className="event-manager" aria-label="Event management">
       <div className="workspace-heading"><div><p className="eyebrow">EVENTS / PUBLISHING</p><h2>Event schedule</h2></div><button className="button" type="button" onClick={() => { setEventMessage(""); setEventDraft(newEventDraft()); }}><Icon name="calendar" /><span>New event</span></button></div>
@@ -371,13 +371,38 @@ function AdminPage({ members: initialMembers, viewer, events, attendees, interes
           </article>;
         })}
       </div>
-    </section> : <section aria-label="Member management">
+    </section> : workspace === "availability" ? <AvailabilityOverview members={members} /> : <section aria-label="Member management">
       <div className="admin-stats"><div><strong>{members.filter(m => m.status === "active").length}</strong><span>Active members</span></div><div><strong>{members.filter(m => m.status === "pending").length}</strong><span>Pending approval</span></div><div><strong>{members.filter(m => m.competitionInterest).length}</strong><span>Competition interest</span></div></div>
       <div className="filter-bar admin-filters"><label className="search-field"><Icon name="search" /><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search members…" /></label><label><span>Grade</span><select value={grade} onChange={e => setGrade(e.target.value)}><option>All</option>{[7,8,9,10,11,12].map(n => <option key={n}>{n}</option>)}</select></label><label><span>Direction</span><select value={direction} onChange={e => setDirection(e.target.value as Direction | "All")}><option>All</option><option>Machine Learning</option><option>Arduino</option><option>Programming</option><option>Both</option><option>Not sure</option></select></label><label><span>Level</span><select value={level} onChange={e => setLevel(e.target.value as Level | "All")}><option>All</option><option>Beginner</option><option>Intermediate</option><option>Advanced</option></select></label><label className="competition-filter"><input type="checkbox" checked={competitionOnly} onChange={e => setCompetitionOnly(e.target.checked)} /> Competition interest</label></div>
       <div className="admin-result"><strong>{filtered.length}</strong> matching members {pending ? "· SAVING" : ""}{message ? <span role="status"> · {message}</span> : null}</div>
       <div className="table-wrap"><table><thead><tr><th>Name</th><th>Grade</th><th>Direction</th><th>Meeting days</th><th>Role</th><th>Status</th><th>Private contact</th></tr></thead><tbody>{filtered.map(member => <tr key={member.id}><td><strong>{member.profileComplete ? `${member.firstName} ${member.lastName}` : "Profile incomplete"}</strong><small>{member.ascId}</small></td><td>{member.profileComplete ? member.grade : "—"}</td><td>{member.profileComplete ? member.direction : "—"}</td><td><span className="availability-cell">{member.availabilityDays.length ? member.availabilityDays.map((day) => day.slice(0, 3)).join(" · ") : "Not selected"}</span></td><td>{viewer.role === "admin" ? <select aria-label={`Role for ${member.firstName || member.email}`} value={member.role} disabled={pending} onChange={(event) => updateAccess(member, event.target.value as Role, member.status)}><option value="member">Member</option><option value="organizer">Organizer</option><option value="admin">Admin</option></select> : member.role}</td><td>{viewer.role === "admin" ? <select aria-label={`Status for ${member.firstName || member.email}`} value={member.status} disabled={pending} onChange={(event) => updateAccess(member, member.role, event.target.value as ProfileStatus)}><option value="pending">Pending</option><option value="active">Active</option><option value="suspended">Suspended</option></select> : member.status}</td><td><a href={`mailto:${member.email}`}>{member.email}</a><small>{member.whatsapp || "No WhatsApp"}</small></td></tr>)}</tbody></table></div>
     </section>}
   </div>;
+}
+
+function AvailabilityOverview({ members }: { members: Member[] }) {
+  const [selectedDay, setSelectedDay] = useState<Weekday>("Monday");
+  const approvedMembers = members.filter((member) => member.status === "active" && member.profileComplete);
+  const days = weekdays.map((day) => ({ day, members: approvedMembers.filter((member) => member.availabilityDays.includes(day)) }));
+  const mostAvailable = Math.max(0, ...days.map(({ members: available }) => available.length));
+  const selectedMembers = days.find(({ day }) => day === selectedDay)?.members ?? [];
+  const membersWithDays = approvedMembers.filter((member) => member.availabilityDays.length > 0).length;
+
+  return <section className="availability-overview" aria-label="Weekly meeting availability">
+    <div className="workspace-heading availability-heading"><div><p className="eyebrow">MEETINGS / PLANNING</p><h2>Weekly availability</h2></div><p>{membersWithDays} of {approvedMembers.length} approved members have chosen at least one day. These are preferences, not event RSVPs.</p></div>
+    <div className="availability-week" role="group" aria-label="Choose a day to see available members">
+      {days.map(({ day, members: available }, index) => <button key={day} type="button" className={`availability-day ${selectedDay === day ? "is-selected" : ""}`} aria-pressed={selectedDay === day} onClick={() => setSelectedDay(day)}>
+        <span className="availability-day-index">{String(index + 1).padStart(2, "0")} / 07</span>
+        <span className="availability-day-name">{day}</span>
+        <span className="availability-day-total"><strong>{available.length}</strong><small>{available.length === 1 ? "member" : "members"}</small></span>
+        <span className="availability-day-meter" aria-hidden="true"><i style={{ width: `${mostAvailable ? available.length / mostAvailable * 100 : 0}%` }} /></span>
+      </button>)}
+    </div>
+    <div className="availability-detail">
+      <div className="availability-detail-heading"><p className="eyebrow">SELECTED DAY</p><h3>{selectedDay}</h3><span>{selectedMembers.length} available</span></div>
+      {selectedMembers.length ? <div className="availability-roster">{selectedMembers.map((member) => <div className="availability-person" key={member.id}><strong>{member.firstName} {member.lastName}</strong><span>Grade {member.grade} · {member.direction}</span></div>)}</div> : <p className="availability-empty">No approved members have selected {selectedDay} yet.</p>}
+    </div>
+  </section>;
 }
 
 function EventEditor({ draft, setDraft, onSave, onCancel, pending }: { draft: EventInput; setDraft: (draft: EventInput) => void; onSave: (draft: EventInput) => void; onCancel: () => void; pending: boolean }) {
