@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import type { ClubEvent, Direction, EventInput, EventStatus, EventType, Level, ProfileInput, ProfileStatus, Role, Weekday } from "@/data/types";
+import type { ClubEvent, Direction, EventStatus, EventType, Level, ProfileInput, ProfileStatus, Role, Weekday } from "@/data/types";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -14,8 +14,9 @@ const levels: Level[] = ["Beginner", "Intermediate", "Advanced"];
 const weekdays: Weekday[] = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const roles: Role[] = ["member", "organizer", "admin"];
 const statuses: ProfileStatus[] = ["pending", "active", "suspended"];
-const eventStatuses: EventStatus[] = ["upcoming", "past", "cancelled"];
 const eventTypes: EventType[] = ["meeting", "competition"];
+const eventImageBucket = "event-images";
+const eventImageTypes: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" };
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 async function authenticatedUserId() {
@@ -38,42 +39,21 @@ async function activeStaffContext() {
   return auth;
 }
 
-function validateEvent(input: EventInput): string | null {
-  if (input.id && !uuidPattern.test(input.id)) return "Invalid event.";
-  if (input.title.trim().length < 3 || input.title.trim().length > 100) return "Use an event title from 3 to 100 characters.";
-  if (input.category.trim().length < 2 || input.category.trim().length > 50) return "Use a short event category.";
-  if (input.location.trim().length < 2 || input.location.trim().length > 120) return "Enter a valid event location.";
-  if (input.description.trim().length < 10 || input.description.trim().length > 1000) return "Use a description from 10 to 1000 characters.";
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date) || !/^\d{2}:\d{2}$/.test(input.startTime) || !/^\d{2}:\d{2}$/.test(input.endTime)) return "Choose a valid date and time.";
-  if (!eventStatuses.includes(input.status)) return "Choose a valid event status.";
-  if (!eventTypes.includes(input.eventType)) return "Choose a valid event type.";
-  if (input.eventType === "competition") {
-    try {
-      const url = new URL(input.externalUrl);
-      if (!["http:", "https:"].includes(url.protocol)) return "Enter a valid competition link.";
-    } catch {
-      return "Enter a valid competition link.";
-    }
-  }
-  const startsAt = new Date(`${input.date}T${input.startTime}:00+05:00`);
-  const endsAt = new Date(`${input.date}T${input.endTime}:00+05:00`);
-  if (Number.isNaN(startsAt.valueOf()) || Number.isNaN(endsAt.valueOf()) || endsAt <= startsAt) return "The end time must be later than the start time.";
-  return null;
-}
-
-function eventFromRow(row: { id: string; title: string; starts_at: string; ends_at: string; location: string; description: string; attendee_count: number; status: EventStatus; category: string; event_type: EventType; external_url: string | null }): ClubEvent {
+function eventFromRow(row: { id: string; title: string; starts_at: string | null; ends_at: string | null; location: string | null; description: string; attendee_count: number; status: EventStatus; category: string; event_type: EventType; external_url: string | null; image_path: string | null; created_at: string }): ClubEvent {
   const dateFormatter = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Almaty", year: "numeric", month: "2-digit", day: "2-digit" });
   const timeFormatter = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Almaty", hour: "2-digit", minute: "2-digit", hour12: false });
-  const parts = dateFormatter.formatToParts(new Date(row.starts_at));
+  const parts = row.starts_at ? dateFormatter.formatToParts(new Date(row.starts_at)) : [];
   const part = (type: string) => parts.find((item) => item.type === type)?.value ?? "";
   return {
     id: row.id,
     title: row.title,
-    date: `${part("year")}-${part("month")}-${part("day")}`,
-    startTime: timeFormatter.format(new Date(row.starts_at)),
-    endTime: timeFormatter.format(new Date(row.ends_at)),
+    date: row.starts_at ? `${part("year")}-${part("month")}-${part("day")}` : null,
+    startTime: row.starts_at ? timeFormatter.format(new Date(row.starts_at)) : "",
+    endTime: row.ends_at ? timeFormatter.format(new Date(row.ends_at)) : "",
     location: row.location,
     description: row.description,
+    imagePath: row.image_path,
+    publishedAt: row.created_at,
     attendeeCount: row.attendee_count,
     status: row.status,
     category: row.category,
@@ -198,30 +178,84 @@ export async function setRsvpAction(eventId: string, attending: boolean): Promis
   return { ok: true };
 }
 
-export async function saveEventAction(input: EventInput): Promise<EventActionResult> {
+export async function saveEventAction(formData: FormData): Promise<EventActionResult> {
   const auth = await activeStaffContext();
   if (!auth) return { ok: false, message: "Only active organizers and administrators can manage events." };
-  const validationError = validateEvent(input);
-  if (validationError) return { ok: false, message: validationError };
+  const id = formData.get("id");
+  const rawText = formData.get("text");
+  const eventType = formData.get("eventType");
+  const image = formData.get("image");
+  const removeImage = formData.get("removeImage") === "true";
+  if (id !== null && (typeof id !== "string" || !uuidPattern.test(id))) return { ok: false, message: "Invalid event." };
+  if (typeof rawText !== "string" || !rawText.trim() || rawText.trim().length > 5000) return { ok: false, message: "Paste a message or link (up to 5,000 characters)." };
+  if (typeof eventType !== "string" || !eventTypes.includes(eventType as EventType)) return { ok: false, message: "Choose competition or meeting." };
+  if (image !== null && (!(image instanceof File) || !eventImageTypes[image.type] || image.size > 5 * 1024 * 1024)) return { ok: false, message: "Use a JPG, PNG, WebP or GIF image under 5 MB." };
+
+  const text = rawText.trim();
+  const firstLine = text.split(/\r?\n/).find((line) => line.trim())?.trim() ?? text;
+  const linkMatch = text.match(/https?:\/\/[^\s<>"']+/i);
+  const link = linkMatch?.[0].replace(/[.,;!?)}\]]+$/, "") ?? "";
+  let externalUrl: string | null = null;
+  if (link) {
+    try {
+      const parsed = new URL(link);
+      if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("Invalid URL");
+      externalUrl = parsed.toString();
+    } catch {
+      return { ok: false, message: "The link in your message is invalid." };
+    }
+  }
+  const linkOnly = /^https?:\/\//i.test(firstLine) && text === firstLine;
+  const title = /^https?:\/\//i.test(firstLine) ? new URL(externalUrl ?? firstLine).hostname.replace(/^www\./, "") : firstLine.slice(0, 100);
+  const description = linkOnly ? "" : firstLine.length > 100 ? text.slice(100).trim() : text.slice(text.indexOf(firstLine) + firstLine.length).trim();
+
+  let oldImagePath: string | null = null;
+  if (id) {
+    const { data: existing, error: existingError } = await auth.supabase.from("events").select("image_path").eq("id", id).single();
+    if (existingError || !existing) return { ok: false, message: "Event not found." };
+    oldImagePath = existing.image_path;
+  }
+
+  let newImagePath: string | null = null;
+  if (image instanceof File && image.size > 0) {
+    newImagePath = `${crypto.randomUUID()}.${eventImageTypes[image.type]}`;
+    const upload = await auth.supabase.storage.from(eventImageBucket).upload(newImagePath, image, { contentType: image.type, upsert: false });
+    if (upload.error) {
+      console.error("Event image upload failed", upload.error.message);
+      return { ok: false, message: "Could not upload the image. Please try again." };
+    }
+  }
 
   const payload = {
-    title: input.title.trim(),
-    starts_at: new Date(`${input.date}T${input.startTime}:00+05:00`).toISOString(),
-    ends_at: new Date(`${input.date}T${input.endTime}:00+05:00`).toISOString(),
-    location: input.location.trim(),
-    description: input.description.trim(),
-    status: input.status,
-    category: input.category.trim(),
-    event_type: input.eventType,
-    external_url: input.eventType === "competition" ? input.externalUrl.trim() : null,
+    title,
+    description,
+    event_type: eventType,
+    external_url: externalUrl,
+    ...(newImagePath || removeImage ? { image_path: newImagePath } : {}),
   };
 
-  const query = input.id
-    ? auth.supabase.from("events").update(payload).eq("id", input.id)
+  const query = id
+    ? auth.supabase.from("events").update(payload).eq("id", id)
     : auth.supabase.from("events").insert({ ...payload, created_by: auth.userId });
-  const { data, error } = await query.select("id,title,starts_at,ends_at,location,description,attendee_count,status,category,event_type,external_url").single();
-  if (error || !data) return { ok: false, message: "Could not save the event. Please try again." };
+  const { data, error } = await query.select("id,title,starts_at,ends_at,location,description,attendee_count,status,category,event_type,external_url,image_path,created_at").single();
+  if (error || !data) {
+    if (newImagePath) await auth.supabase.storage.from(eventImageBucket).remove([newImagePath]);
+    console.error("Event save failed", error?.code);
+    return { ok: false, message: "Could not save the event. Please try again." };
+  }
+  if (oldImagePath && (newImagePath || removeImage)) await auth.supabase.storage.from(eventImageBucket).remove([oldImagePath]);
 
+  revalidatePath("/");
+  return { ok: true, event: eventFromRow(data) };
+}
+
+export async function setEventStatusAction(eventId: string, status: EventStatus): Promise<EventActionResult> {
+  const auth = await activeStaffContext();
+  if (!auth) return { ok: false, message: "Only active organizers and administrators can manage events." };
+  if (!uuidPattern.test(eventId) || !["upcoming", "past", "cancelled"].includes(status)) return { ok: false, message: "Invalid event status." };
+  const { data, error } = await auth.supabase.from("events").update({ status }).eq("id", eventId)
+    .select("id,title,starts_at,ends_at,location,description,attendee_count,status,category,event_type,external_url,image_path,created_at").single();
+  if (error || !data) return { ok: false, message: "Could not update the event." };
   revalidatePath("/");
   return { ok: true, event: eventFromRow(data) };
 }

@@ -41,11 +41,13 @@ export interface ProfileInput {
 export interface ClubEvent {
   id: string;
   title: string;
-  date: string;
+  date: string | null;
   startTime: string;
   endTime: string;
-  location: string;
+  location: string | null;
   description: string;
+  imagePath: string | null;
+  publishedAt: string;
   attendeeCount: number;
   status: "upcoming" | "past" | "cancelled";
   category: string;
@@ -57,16 +59,9 @@ export type EventStatus = ClubEvent["status"];
 
 export interface EventInput {
   id?: string;
-  title: string;
-  date: string;
-  startTime: string;
-  endTime: string;
-  location: string;
-  description: string;
-  status: EventStatus;
-  category: string;
+  text: string;
   eventType: EventType;
-  externalUrl: string;
+  imagePath?: string | null;
 }
 
 export interface EventAttendee {

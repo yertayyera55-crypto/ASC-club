@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useMemo, useState, useTransition } from "react";
-import { saveEventAction, saveProfileAction, setEventInterestAction, setRsvpAction, signOutAction, updateMemberAccessAction } from "@/app/actions";
+import { saveEventAction, saveProfileAction, setEventInterestAction, setEventStatusAction, setRsvpAction, signOutAction, updateMemberAccessAction } from "@/app/actions";
 import type { Announcement, ClubEvent, Direction, EventAttendee, EventInput, EventInterest, EventStatus, EventType, Level, Member, ProfileInput, ProfileStatus, Role, Weekday } from "@/data/types";
 import type { PortalState } from "@/lib/portal-data";
 import { AvailabilityPicker, weekdays } from "./AvailabilityPicker";
@@ -20,12 +20,17 @@ const nav: { id: Page; label: string; icon: string }[] = [
 
 const canViewPrivateContacts = (viewer: Member) => viewer.role === "organizer" || viewer.role === "admin";
 
-const formatDate = (date: string, style: "full" | "month" | "day" = "full") => {
+const formatDate = (date: string | null, style: "full" | "month" | "day" = "full") => {
+  if (!date) return style === "full" ? "Date to be announced" : "—";
   const value = new Date(`${date}T12:00:00`);
   if (style === "month") return value.toLocaleDateString("en", { month: "short" }).toUpperCase();
   if (style === "day") return value.toLocaleDateString("en", { day: "2-digit" });
   return value.toLocaleDateString("en", { day: "numeric", month: "long", year: "numeric" });
 };
+
+function EventPicture({ event }: { event: ClubEvent }) {
+  return event.imagePath ? <Image className="event-picture" src={`/api/event-image/${event.id}`} alt={`Image for ${event.title}`} width={1200} height={800} unoptimized /> : null;
+}
 
 function Initials({ member, large = false }: { member: Member; large?: boolean }) {
   return <span className={`avatar ${large ? "avatar-large" : ""}`}>{member.firstName[0]}{member.lastName[0]}</span>;
@@ -134,11 +139,12 @@ function HomePage({ user, events, members, announcements, rsvps, interestEventId
 
       {nextEvent ? <section className="feature-event">
         <div className="event-copy">
-          <p className="eyebrow light">NEXT EVENT</p>
+          <p className="eyebrow light">LATEST CLUB POST</p>
           <h2>{nextEvent.title}</h2>
-          <div className="event-meta"><span><Icon name="calendar" />{formatDate(nextEvent.date)}</span><span><Icon name="clock" />{nextEvent.startTime} — {nextEvent.endTime}</span><span><Icon name="pin" />{nextEvent.location}</span></div>
-          <p>{nextEvent.description}</p>
-          {nextEvent.eventType === "competition" && nextEvent.externalUrl ? <a className="event-source-link light" href={nextEvent.externalUrl} target="_blank" rel="noreferrer">Competition website <Icon name="arrow" /></a> : null}
+          <div className="event-meta">{nextEvent.date ? <span><Icon name="calendar" />{formatDate(nextEvent.date)}</span> : null}{nextEvent.startTime && nextEvent.endTime ? <span><Icon name="clock" />{nextEvent.startTime} — {nextEvent.endTime}</span> : null}{nextEvent.location ? <span><Icon name="pin" />{nextEvent.location}</span> : null}</div>
+          {nextEvent.description ? <p className="event-description">{nextEvent.description}</p> : null}
+          <EventPicture event={nextEvent} />
+          {nextEvent.externalUrl ? <a className="event-source-link light" href={nextEvent.externalUrl} target="_blank" rel="noreferrer">Open link <Icon name="arrow" /></a> : null}
           <div className="event-actions">{nextEvent.eventType === "competition" ? <ActionButton active={interested} onClick={() => onInterest(nextEvent.id)}>{interested ? "Interested" : "I’m interested"}</ActionButton> : <ActionButton active={attending} onClick={() => onRsvp(nextEvent.id)}>{attending ? "I’m attending" : "Join meeting"}</ActionButton>}<span>{nextEvent.eventType === "competition" ? `${interestedCount} looking for a team` : `${nextEvent.attendeeCount + (attending ? 1 : 0)} members going`}</span></div>
         </div>
         <div className="event-art" onContextMenu={(event) => event.preventDefault()}><Image src="/assets/asc-rover.png" alt="Ink-style autonomous rover" fill loading="eager" draggable={false} sizes="(max-width: 800px) 100vw, 45vw" /></div>
@@ -149,7 +155,7 @@ function HomePage({ user, events, members, announcements, rsvps, interestEventId
         <div className="section-heading"><p className="eyebrow">QUICK ACCESS</p><p className="section-caption">Four places. No clutter.</p></div>
         <div className="quick-grid">
           {[
-            ["events", "calendar", "Events", "Upcoming sessions and RSVP"],
+            ["events", "calendar", "Events", "Club posts, links and meetings"],
             ["members", "users", "Members", "Find people and shared interests"],
             ["profile", "user", "Your profile", "Keep your club details current"],
             ["admin", "admin", "Organizer tools", "Member database and filters"],
@@ -182,19 +188,19 @@ function EventsPage({ events, rsvps, interestEventIds, eventInterests, onRsvp, o
   const visible = events.filter((event) => event.status === tab);
   return (
     <div className="content-page">
-      <header className="page-header"><div><p className="eyebrow">PROGRAM / 2026</p><h1>Events</h1></div><p>Workshops, talks and focused build sessions. Join what moves your work forward.</p></header>
-      <div className="tab-bar"><button className={tab === "upcoming" ? "active" : ""} onClick={() => setTab("upcoming")}>Upcoming <sup>{events.filter(e => e.status === "upcoming").length}</sup></button><button className={tab === "past" ? "active" : ""} onClick={() => setTab("past")}>Past <sup>{events.filter(e => e.status === "past").length}</sup></button></div>
+      <header className="page-header"><div><p className="eyebrow">CLUB / EVENTS</p><h1>Events</h1></div><p>Competitions, meetings and useful links shared by the organizers. Find a team or join in.</p></header>
+      <div className="tab-bar"><button className={tab === "upcoming" ? "active" : ""} onClick={() => setTab("upcoming")}>Current <sup>{events.filter(e => e.status === "upcoming").length}</sup></button><button className={tab === "past" ? "active" : ""} onClick={() => setTab("past")}>Past <sup>{events.filter(e => e.status === "past").length}</sup></button></div>
       <div className="event-list">
-        {visible.length === 0 ? <div className="empty-state"><strong>No {tab} events.</strong><span>Organizers will publish the schedule here.</span></div> : null}
+        {visible.length === 0 ? <div className="empty-state"><strong>No {tab === "upcoming" ? "current posts" : "past events"}.</strong><span>Organizers will share updates here.</span></div> : null}
         {visible.map((event, index) => {
           const attending = rsvps.includes(event.id);
           const interested = interestEventIds.includes(event.id);
           const interestedMembers = eventInterests.filter((interest) => interest.eventId === event.id);
           const teamOpen = expandedCompetition === event.id;
           return <article className="event-row" key={event.id} style={{ "--delay": `${index * 55}ms` } as React.CSSProperties}>
-            <div className="event-date"><span>{formatDate(event.date, "month")}</span><strong>{formatDate(event.date, "day")}</strong></div>
-            <div className="event-info"><p className="event-category">{event.eventType === "competition" ? "Competition" : event.category}</p><h2>{event.title}</h2><p>{event.description}</p>{event.eventType === "competition" && event.externalUrl ? <a className="event-source-link" href={event.externalUrl} target="_blank" rel="noreferrer">Official competition page <Icon name="arrow" /></a> : null}</div>
-            <div className="event-details"><span><Icon name="clock" />{event.startTime} — {event.endTime}</span><span><Icon name="pin" />{event.location}</span>{event.eventType === "competition" ? <><small>{interestedMembers.length} interested</small><button className="team-toggle" type="button" onClick={() => setExpandedCompetition(teamOpen ? null : event.id)} aria-expanded={teamOpen}>{teamOpen ? "Hide people" : "Find teammates"}</button></> : <small>{event.attendeeCount + (attending ? 1 : 0)} attending</small>}</div>
+            <div className="event-date"><span>{event.date ? formatDate(event.date, "month") : "DATE"}</span><strong>{event.date ? formatDate(event.date, "day") : "—"}</strong></div>
+            <div className="event-info"><p className="event-category">{event.eventType === "competition" ? "Competition" : "Meeting"}</p><h2>{event.title}</h2>{event.description ? <p className="event-description">{event.description}</p> : null}<EventPicture event={event} />{event.externalUrl ? <a className="event-source-link" href={event.externalUrl} target="_blank" rel="noreferrer">Open link <Icon name="arrow" /></a> : null}</div>
+            <div className="event-details">{event.startTime && event.endTime ? <span><Icon name="clock" />{event.startTime} — {event.endTime}</span> : null}{event.location ? <span><Icon name="pin" />{event.location}</span> : null}{event.eventType === "competition" ? <><small>{interestedMembers.length} interested</small><button className="team-toggle" type="button" onClick={() => setExpandedCompetition(teamOpen ? null : event.id)} aria-expanded={teamOpen}>{teamOpen ? "Hide people" : "Find teammates"}</button></> : <small>{event.attendeeCount + (attending ? 1 : 0)} attending</small>}</div>
             {tab === "upcoming" ? event.eventType === "competition" ? <ActionButton active={interested} onClick={() => onInterest(event.id)}>{interested ? "Interested" : "I’m interested"}</ActionButton> : <ActionButton active={attending} onClick={() => onRsvp(event.id)}>{attending ? "Going" : "Join"}</ActionButton> : <span className="past-label">COMPLETED</span>}
             {event.eventType === "competition" && teamOpen ? <div className="competition-team"><p className="eyebrow">INTERESTED MEMBERS / FIND A TEAM</p>{interestedMembers.length ? interestedMembers.map((member) => <div key={member.userId}><strong>{member.name}</strong><span>{member.ascId} · Grade {member.grade}</span><span>{member.direction}</span><small>{member.skills.slice(0, 3).join(" · ") || "Skills not added"}</small></div>) : <p>No one has marked interest yet. You can be first.</p>}</div> : null}
           </article>;
@@ -278,8 +284,7 @@ function ProfileForm({ draft, setDraft, onSave, pending }: { draft: Member; setD
 }
 
 function newEventDraft(): EventInput {
-  const date = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Almaty", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-  return { title: "", date, startTime: "16:00", endTime: "18:00", location: "", description: "", status: "upcoming", category: "Workshop", eventType: "meeting", externalUrl: "" };
+  return { text: "", eventType: "competition" };
 }
 
 function AdminPage({ members, onMembersChange, viewer, events, attendees, interests, onEventsChange }: { members: Member[]; onMembersChange: React.Dispatch<React.SetStateAction<Member[]>>; viewer: Member; events: ClubEvent[]; attendees: EventAttendee[]; interests: EventInterest[]; onEventsChange: (events: ClubEvent[]) => void }) {
@@ -293,10 +298,11 @@ function AdminPage({ members, onMembersChange, viewer, events, attendees, intere
   const [pending, startTransition] = useTransition();
   const [eventDraft, setEventDraft] = useState<EventInput | null>(null);
   const [eventMessage, setEventMessage] = useState("");
+  const [eventMessageError, setEventMessageError] = useState(false);
   const [expandedEvent, setExpandedEvent] = useState<string | null>(null);
   const [eventPending, startEventTransition] = useTransition();
   const filtered = useMemo(() => members.filter(member => `${member.firstName} ${member.lastName} ${member.email}`.toLowerCase().includes(query.toLowerCase()) && (grade === "All" || (member.profileComplete && member.grade === Number(grade))) && (direction === "All" || (member.profileComplete && member.direction === direction)) && (level === "All" || (member.profileComplete && member.level === level)) && (!competitionOnly || member.competitionInterest)), [members, query, grade, direction, level, competitionOnly]);
-  const orderedEvents = useMemo(() => [...events].sort((a, b) => `${b.date}T${b.startTime}`.localeCompare(`${a.date}T${a.startTime}`)), [events]);
+  const orderedEvents = useMemo(() => [...events].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt)), [events]);
 
   const updateAccess = (member: Member, role: Role, status: ProfileStatus) => {
     setMessage("");
@@ -311,12 +317,20 @@ function AdminPage({ members, onMembersChange, viewer, events, attendees, intere
     });
   };
 
-  const saveEvent = (input: EventInput) => {
+  const saveEvent = (input: EventInput, image: File | null, removeImage: boolean) => {
     setEventMessage("");
+    setEventMessageError(false);
     startEventTransition(async () => {
-      const result = await saveEventAction(input);
+      const formData = new FormData();
+      if (input.id) formData.set("id", input.id);
+      formData.set("text", input.text);
+      formData.set("eventType", input.eventType);
+      if (image) formData.set("image", image);
+      if (removeImage) formData.set("removeImage", "true");
+      const result = await saveEventAction(formData);
       if (!result.ok) {
         setEventMessage(result.message);
+        setEventMessageError(true);
         return;
       }
       const nextEvents = events.some((event) => event.id === result.event.id)
@@ -328,23 +342,23 @@ function AdminPage({ members, onMembersChange, viewer, events, attendees, intere
     });
   };
 
-  const changeEventStatus = (event: ClubEvent, status: EventStatus) => saveEvent({
-    id: event.id,
-    title: event.title,
-    date: event.date,
-    startTime: event.startTime,
-    endTime: event.endTime,
-    location: event.location,
-    description: event.description,
-    category: event.category,
-    eventType: event.eventType,
-    externalUrl: event.externalUrl,
-    status,
-  });
+  const changeEventStatus = (event: ClubEvent, status: EventStatus) => {
+    setEventMessage("");
+    setEventMessageError(false);
+    startEventTransition(async () => {
+      const result = await setEventStatusAction(event.id, status);
+      if (!result.ok) { setEventMessage(result.message); setEventMessageError(true); return; }
+      onEventsChange(events.map((item) => item.id === event.id ? result.event : item));
+      setEventMessage(status === "cancelled" ? "Event hidden." : "Event published.");
+    });
+  };
 
   const editEvent = (event: ClubEvent) => {
     setEventMessage("");
-    setEventDraft({ id: event.id, title: event.title, date: event.date, startTime: event.startTime, endTime: event.endTime, location: event.location, description: event.description, status: event.status, category: event.category, eventType: event.eventType, externalUrl: event.externalUrl });
+    const text = event.externalUrl && event.title === new URL(event.externalUrl).hostname.replace(/^www\./, "") && !event.description
+      ? event.externalUrl
+      : `${event.title}${event.description ? `\n${event.description}` : ""}${event.externalUrl && !event.description.includes(event.externalUrl) ? `\n${event.externalUrl}` : ""}`;
+    setEventDraft({ id: event.id, text, eventType: event.eventType, imagePath: event.imagePath });
   };
 
   return <div className="content-page admin-page">
@@ -352,19 +366,19 @@ function AdminPage({ members, onMembersChange, viewer, events, attendees, intere
     <div className="workspace-tabs" role="tablist" aria-label="Dashboard sections"><button role="tab" aria-selected={workspace === "events"} className={workspace === "events" ? "active" : ""} onClick={() => setWorkspace("events")}>Events <sup>{events.length}</sup></button><button role="tab" aria-selected={workspace === "availability"} className={workspace === "availability" ? "active" : ""} onClick={() => setWorkspace("availability")}>Availability</button><button role="tab" aria-selected={workspace === "members"} className={workspace === "members" ? "active" : ""} onClick={() => setWorkspace("members")}>Members <sup>{members.length}</sup></button></div>
 
     {workspace === "events" ? <section className="event-manager" aria-label="Event management">
-      <div className="workspace-heading"><div><p className="eyebrow">EVENTS / PUBLISHING</p><h2>Event schedule</h2></div><button className="button" type="button" onClick={() => { setEventMessage(""); setEventDraft(newEventDraft()); }}><Icon name="calendar" /><span>New event</span></button></div>
-      {eventDraft ? <EventEditor draft={eventDraft} setDraft={setEventDraft} onSave={saveEvent} onCancel={() => setEventDraft(null)} pending={eventPending} /> : null}
-      {eventMessage ? <p className={`workspace-message ${eventMessage.includes("Could not") || eventMessage.includes("valid") || eventMessage.includes("must") || eventMessage.includes("Only") ? "error" : ""}`} role="status">{eventMessage}</p> : null}
+      <div className="workspace-heading"><div><p className="eyebrow">EVENTS / PUBLISHING</p><h2>Club posts</h2></div><button className="button" type="button" onClick={() => { setEventMessage(""); setEventDraft(newEventDraft()); }}><Icon name="calendar" /><span>New post</span></button></div>
+      {eventDraft ? <EventEditor key={eventDraft.id ?? "new"} draft={eventDraft} setDraft={setEventDraft} onSave={saveEvent} onCancel={() => setEventDraft(null)} pending={eventPending} /> : null}
+      {eventMessage ? <p className={`workspace-message ${eventMessageError ? "error" : ""}`} role="status">{eventMessage}</p> : null}
       <div className="managed-event-list">
-        {orderedEvents.length === 0 ? <div className="empty-state"><strong>No events published.</strong><span>Create the first workshop or club session.</span></div> : null}
+        {orderedEvents.length === 0 ? <div className="empty-state"><strong>No posts published.</strong><span>Paste a message or link to share the first one.</span></div> : null}
         {orderedEvents.map((event) => {
           const eventAttendees = attendees.filter((attendee) => attendee.eventId === event.id);
           const competitionInterests = interests.filter((interest) => interest.eventId === event.id);
           const participationCount = event.eventType === "competition" ? competitionInterests.length : event.attendeeCount;
           const isExpanded = expandedEvent === event.id;
           return <article className={`managed-event ${event.status === "cancelled" ? "is-cancelled" : ""}`} key={event.id}>
-            <div className="managed-event-date"><span>{formatDate(event.date, "month")}</span><strong>{formatDate(event.date, "day")}</strong></div>
-            <div className="managed-event-copy"><div><span className={`event-status status-${event.status}`}>{event.status}</span><small>{event.eventType === "competition" ? "Competition" : event.category}</small></div><h3>{event.title}</h3><p>{event.location} · {event.startTime}—{event.endTime}</p>{event.eventType === "competition" && event.externalUrl ? <a href={event.externalUrl} target="_blank" rel="noreferrer">Open competition link</a> : null}</div>
+            <div className="managed-event-date"><span>{event.date ? formatDate(event.date, "month") : "DATE"}</span><strong>{event.date ? formatDate(event.date, "day") : "—"}</strong></div>
+            <div className="managed-event-copy"><div><span className={`event-status status-${event.status}`}>{event.status}</span><small>{event.eventType === "competition" ? "Competition" : "Meeting"}</small></div><h3>{event.title}</h3><p>{event.date ? `${formatDate(event.date)} · ` : ""}{event.location || "No schedule needed"}</p>{event.externalUrl ? <a href={event.externalUrl} target="_blank" rel="noreferrer">Open link</a> : null}</div>
             <button className="attendance-toggle" type="button" onClick={() => setExpandedEvent(isExpanded ? null : event.id)} aria-expanded={isExpanded}><strong>{participationCount}</strong><span>{event.eventType === "competition" ? "interested" : "attending"}</span></button>
             <div className="managed-event-actions"><button type="button" onClick={() => editEvent(event)}>Edit</button><button type="button" disabled={eventPending} onClick={() => changeEventStatus(event, event.status === "cancelled" ? "upcoming" : "cancelled")}>{event.status === "cancelled" ? "Publish" : "Cancel"}</button></div>
             {isExpanded ? <div className="attendee-list">{event.eventType === "competition" ? competitionInterests.length ? competitionInterests.map((interest) => <div key={interest.userId}><strong>{interest.name}</strong><span>{interest.ascId} · Grade {interest.grade}</span><span>{interest.direction}</span></div>) : <p>No one has marked interest yet.</p> : eventAttendees.length ? eventAttendees.map((attendee) => <div key={attendee.userId}><strong>{attendee.name}</strong><span>{attendee.ascId}</span><a href={`mailto:${attendee.email}`}>{attendee.email}</a></div>) : <p>No one has joined this meeting yet.</p>}</div> : null}
@@ -405,22 +419,19 @@ function AvailabilityOverview({ members }: { members: Member[] }) {
   </section>;
 }
 
-function EventEditor({ draft, setDraft, onSave, onCancel, pending }: { draft: EventInput; setDraft: (draft: EventInput) => void; onSave: (draft: EventInput) => void; onCancel: () => void; pending: boolean }) {
+function EventEditor({ draft, setDraft, onSave, onCancel, pending }: { draft: EventInput; setDraft: (draft: EventInput) => void; onSave: (draft: EventInput, image: File | null, removeImage: boolean) => void; onCancel: () => void; pending: boolean }) {
+  const [image, setImage] = useState<File | null>(null);
+  const [removeImage, setRemoveImage] = useState(false);
   const update = <Key extends keyof EventInput>(key: Key, value: EventInput[Key]) => setDraft({ ...draft, [key]: value });
-  return <form className="event-editor" onSubmit={(event) => { event.preventDefault(); onSave(draft); }}>
-    <div className="event-editor-title"><div><p className="eyebrow">{draft.id ? "EDIT EVENT" : "NEW EVENT"}</p><h3>{draft.id ? "Update the announcement" : "Publish to the club"}</h3></div><button type="button" onClick={onCancel} aria-label="Close event editor"><Icon name="close" /></button></div>
-    <div className="form-grid event-form-grid">
-      <label className="wide">Title<input required maxLength={100} value={draft.title} onChange={(event) => update("title", event.target.value)} placeholder={draft.eventType === "competition" ? "National robotics challenge" : "Arduino prototyping meeting"} /></label>
-      <label>Type<select value={draft.eventType} onChange={(event) => update("eventType", event.target.value as EventType)}><option value="meeting">Meeting</option><option value="competition">Competition</option></select></label>
-      <label>Category<input required maxLength={50} value={draft.category} onChange={(event) => update("category", event.target.value)} placeholder="Workshop" /></label>
-      <label>Location<input required maxLength={120} value={draft.location} onChange={(event) => update("location", event.target.value)} placeholder="Engineering Block, Lab 2" /></label>
-      <label>Date<input required type="date" value={draft.date} onChange={(event) => update("date", event.target.value)} /></label>
-      <label>Starts<input required type="time" value={draft.startTime} onChange={(event) => update("startTime", event.target.value)} /></label>
-      <label>Ends<input required type="time" value={draft.endTime} onChange={(event) => update("endTime", event.target.value)} /></label>
-      <label>Status<select value={draft.status} onChange={(event) => update("status", event.target.value as EventStatus)}><option value="upcoming">Upcoming</option><option value="past">Past</option><option value="cancelled">Cancelled</option></select></label>
-      {draft.eventType === "competition" ? <label className="wide">Competition link<input required type="url" maxLength={500} value={draft.externalUrl} onChange={(event) => update("externalUrl", event.target.value)} placeholder="https://competition.example/apply" /></label> : null}
-      <label className="wide">Description<textarea required maxLength={1000} rows={4} value={draft.description} onChange={(event) => update("description", event.target.value)} placeholder="What members will learn, build or prepare." /></label>
+  return <form className="event-editor" onSubmit={(event) => { event.preventDefault(); onSave(draft, image, removeImage); }}>
+    <div className="event-editor-title"><div><p className="eyebrow">{draft.id ? "EDIT POST" : "NEW POST"}</p><h3>{draft.id ? "Edit your message" : "Share with the club"}</h3></div><button type="button" onClick={onCancel} aria-label="Close post editor"><Icon name="close" /></button></div>
+    <div className="event-kind" role="group" aria-label="Post type">
+      <button type="button" className={draft.eventType === "competition" ? "active" : ""} aria-pressed={draft.eventType === "competition"} onClick={() => update("eventType", "competition")}>Competition</button>
+      <button type="button" className={draft.eventType === "meeting" ? "active" : ""} aria-pressed={draft.eventType === "meeting"} onClick={() => update("eventType", "meeting")}>Meeting</button>
     </div>
-    <div className="event-editor-actions"><button className="button" type="submit" disabled={pending}><span>{pending ? "Publishing…" : draft.id ? "Save event" : "Publish event"}</span><Icon name="arrow" /></button><button className="text-link" type="button" onClick={onCancel}>Discard</button></div>
+    <label className="event-message-label" htmlFor="event-message">Paste your message or link</label>
+    <textarea id="event-message" className="event-message-input" required maxLength={5000} rows={7} value={draft.text} onChange={(event) => update("text", event.target.value)} placeholder={"Paste the same announcement you share in WhatsApp. A single link works too.\n\nNo date or time needed."} />
+    <div className="event-attachment"><label htmlFor="event-image">Add image <span>optional · JPG, PNG, WebP or GIF · up to 5 MB</span></label><input id="event-image" type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(event) => { setImage(event.target.files?.[0] ?? null); if (event.target.files?.[0]) setRemoveImage(false); }} />{image ? <span>{image.name}</span> : draft.id && draft.imagePath && !removeImage ? <span>Current image attached <button type="button" onClick={() => setRemoveImage(true)}>Remove</button></span> : null}</div>
+    <div className="event-editor-actions"><button className="button" type="submit" disabled={pending}><span>{pending ? "Publishing…" : draft.id ? "Save changes" : "Publish post"}</span><Icon name="arrow" /></button><button className="text-link" type="button" onClick={onCancel}>Discard</button></div>
   </form>;
 }
