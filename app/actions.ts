@@ -193,20 +193,22 @@ export async function saveEventAction(formData: FormData): Promise<EventActionRe
 
   const text = rawText.trim();
   const firstLine = text.split(/\r?\n/).find((line) => line.trim())?.trim() ?? text;
-  const linkMatch = text.match(/https?:\/\/[^\s<>"']+/i);
-  const link = linkMatch?.[0].replace(/[.,;!?)}\]]+$/, "") ?? "";
+  const linkMatch = text.match(/(?:https?:\/\/|www\.)[^\s<>"']+/i)
+    ?? text.match(/(?:^|\s)((?:[a-z0-9-]+\.)+[a-z]{2,}(?:[/?#][^\s<>"']*)?)/im);
+  const link = (linkMatch?.[1] ?? linkMatch?.[0] ?? "").trim().replace(/[.,;!?)}\]]+$/, "");
   let externalUrl: string | null = null;
   if (link) {
     try {
-      const parsed = new URL(link);
+      const parsed = new URL(/^https?:\/\//i.test(link) ? link : `https://${link}`);
       if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("Invalid URL");
       externalUrl = parsed.toString();
     } catch {
       return { ok: false, message: "The link in your message is invalid." };
     }
   }
-  const linkOnly = /^https?:\/\//i.test(firstLine) && text === firstLine;
-  const title = /^https?:\/\//i.test(firstLine) ? new URL(externalUrl ?? firstLine).hostname.replace(/^www\./, "") : firstLine.slice(0, 100);
+  const firstLineIsLink = Boolean(externalUrl && firstLine.replace(/[.,;!?)}\]]+$/, "") === link);
+  const linkOnly = firstLineIsLink && text === firstLine;
+  const title = firstLineIsLink ? new URL(externalUrl!).hostname.replace(/^www\./, "") : firstLine.slice(0, 100);
   const description = linkOnly ? "" : firstLine.length > 100 ? text.slice(100).trim() : text.slice(text.indexOf(firstLine) + firstLine.length).trim();
 
   let oldImagePath: string | null = null;
